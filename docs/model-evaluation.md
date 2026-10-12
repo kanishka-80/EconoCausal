@@ -33,7 +33,7 @@ Before evaluating it, confirm:
 Do not report final treatment-effect estimates before the estimator and data pipeline are ready.
 
 ## 5. DoWhy Refutation Checks
-Select checks that are appropriate for the chosen causal model and data.
+Select checks that are appropriate for the chosen causal model and datas.
 
 For each check, record:
 - Check name
