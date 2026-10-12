@@ -1,9 +1,10 @@
+
 import { useState } from 'react'
 import {
   Activity, BarChart3, Bell, CheckCircle2, ChevronRight,
   CircleHelp, CloudUpload, Database, FileSpreadsheet, FileText,
-  Gauge, Home, LayoutDashboard, Search, Settings, ShieldCheck,
-  Sparkles, UploadCloud, Workflow, X
+  LayoutDashboard, Search, Settings, ShieldCheck, Sparkles,
+  UploadCloud, Workflow, X
 } from 'lucide-react'
 import './App.css'
 
@@ -79,6 +80,14 @@ function App() {
     reader.readAsText(file)
   }
 
+  function removeFile() {
+    setFileName('')
+    setHeaders([])
+    setRows([])
+    setSearch('')
+    setError('')
+  }
+
   const filteredRows = rows.filter(row =>
     row.some(cell =>
       String(cell ?? '').toLowerCase().includes(search.toLowerCase())
@@ -89,7 +98,9 @@ function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <a className="brand" href="#dashboard">
-          <span className="brand-mark"><Activity size={25} /></span>
+          <span className="brand-mark">
+            <Activity size={25} />
+          </span>
           <span>
             <strong>EconoCausal</strong>
             <small>Causal Intelligence Platform</small>
@@ -97,28 +108,40 @@ function App() {
         </a>
 
         <div className="nav-section-label">WORKSPACE</div>
+
         <nav className="navigation">
           <a className="nav-link active" href="#dashboard">
-            <LayoutDashboard size={19} /> <span>Dashboard</span>
+            <LayoutDashboard size={19} />
+            <span>Dashboard</span>
           </a>
+
           <a className="nav-link" href="#upload">
-            <CloudUpload size={19} /> <span>Upload Dataset</span>
+            <CloudUpload size={19} />
+            <span>Upload &amp; Preview</span>
           </a>
+
           <a className="nav-link" href="#analysis">
-            <Workflow size={19} /> <span>Causal Analysis</span>
+            <Workflow size={19} />
+            <span>Causal Results</span>
           </a>
-          <a className="nav-link" href="#results">
-            <BarChart3 size={19} /> <span>Results</span>
+
+          <a className="nav-link" href="#budget">
+            <BarChart3 size={19} />
+            <span>Budget Allocation</span>
           </a>
+
           <a className="nav-link" href="#settings">
-            <Settings size={19} /> <span>Settings</span>
+            <Settings size={19} />
+            <span>Settings</span>
           </a>
         </nav>
 
         <div className="sidebar-bottom">
-          <div className="team-icon"><Sparkles size={20} /></div>
+          <div className="team-icon">
+            <Sparkles size={20} />
+          </div>
           <div>
-            <strong>team 27</strong>
+            <strong>Brainbyte</strong>
             <small>Frontend Workspace</small>
           </div>
           <span className="online-dot" />
@@ -135,14 +158,22 @@ function App() {
 
           <div className="topbar-right">
             <div className="system-status">
-              <span className="online-dot" /> System workspace
+              <span className="online-dot" />
+              Workspace
             </div>
+
             <button className="icon-button" aria-label="Help" title="Help">
               <CircleHelp size={19} />
             </button>
-            <button className="icon-button" aria-label="Notifications" title="Notifications">
+
+            <button
+              className="icon-button"
+              aria-label="Notifications"
+              title="Notifications"
+            >
               <Bell size={19} />
             </button>
+
             <div className="profile">
               <div className="avatar">EC</div>
               <div className="profile-text">
@@ -155,10 +186,17 @@ function App() {
 
         <section className="hero">
           <div className="hero-copy">
-            <div className="eyebrow"><span /> CAUSAL INTELLIGENCE PLATFORM</div>
+            <div className="eyebrow">
+              <span />
+              CAUSAL INTELLIGENCE PLATFORM
+            </div>
             <h1>Welcome to <span>EconoCausal</span></h1>
-            <p>Turn your data into causal insights with modern analytics.</p>
+            <p>
+              Explore your data, understand causal relationships,
+              and prepare for better-informed decisions.
+            </p>
           </div>
+
           <div className="hero-art" aria-hidden="true">
             <div className="orbit orbit-one" />
             <div className="orbit orbit-two" />
@@ -174,8 +212,12 @@ function App() {
         <section className="stats-grid">
           <article className="stat-card blue">
             <div className="stat-top">
-              <span className="stat-icon"><FileSpreadsheet size={22} /></span>
-              <span className="stat-arrow"><ChevronRight size={17} /></span>
+              <span className="stat-icon">
+                <FileSpreadsheet size={22} />
+              </span>
+              <span className="stat-arrow">
+                <ChevronRight size={17} />
+              </span>
             </div>
             <p>Dataset</p>
             <h2>{fileName ? 'Selected' : 'Not uploaded'}</h2>
@@ -184,39 +226,57 @@ function App() {
 
           <article className="stat-card cyan">
             <div className="stat-top">
-              <span className="stat-icon"><ShieldCheck size={22} /></span>
-              <span className="stat-arrow"><ChevronRight size={17} /></span>
+              <span className="stat-icon">
+                <ShieldCheck size={22} />
+              </span>
+              <span className="stat-arrow">
+                <ChevronRight size={17} />
+              </span>
             </div>
             <p>Data validation</p>
             <h2>{headers.length ? 'Loaded' : 'Pending'}</h2>
-            <small>{headers.length ? `${headers.length} columns detected` : 'Waiting for dataset'}</small>
+            <small>
+              {headers.length
+                ? `${headers.length} columns detected`
+                : 'Waiting for dataset'}
+            </small>
           </article>
 
           <article className="stat-card purple">
             <div className="stat-top">
-              <span className="stat-icon"><Workflow size={22} /></span>
-              <span className="stat-arrow"><ChevronRight size={17} /></span>
+              <span className="stat-icon">
+                <Workflow size={22} />
+              </span>
+              <span className="stat-arrow">
+                <ChevronRight size={17} />
+              </span>
             </div>
             <p>Causal analysis</p>
             <h2>Not started</h2>
-            <small>Available after data preparation</small>
+            <small>Analysis integration pending</small>
           </article>
 
           <article className="stat-card amber">
             <div className="stat-top">
-              <span className="stat-icon"><BarChart3 size={22} /></span>
-              <span className="stat-arrow"><ChevronRight size={17} /></span>
+              <span className="stat-icon">
+                <BarChart3 size={22} />
+              </span>
+              <span className="stat-arrow">
+                <ChevronRight size={17} />
+              </span>
             </div>
-            <p>Results</p>
+            <p>Budget allocation</p>
             <h2>Not available</h2>
-            <small>Complete analysis to view results</small>
+            <small>Waiting for optimization functionality</small>
           </article>
         </section>
 
-        <section className="work-grid">
-          <article className="panel upload-panel" id="upload">
+        <section className="work-grid" id="upload">
+          <article className="panel upload-panel">
             <div className="panel-heading">
-              <div className="panel-title-icon"><UploadCloud size={23} /></div>
+              <div className="panel-title-icon">
+                <UploadCloud size={23} />
+              </div>
               <div className="panel-title-copy">
                 <h2>Upload your dataset</h2>
                 <p>Select a CSV file to begin data preparation.</p>
@@ -242,37 +302,49 @@ function App() {
                 accept=".csv,text/csv"
                 onChange={event => processFile(event.target.files[0])}
               />
-              <span className="drop-icon"><UploadCloud size={31} /></span>
+
+              <span className="drop-icon">
+                <UploadCloud size={31} />
+              </span>
               <strong>Choose a CSV file</strong>
-              <span className="drop-description">Click to browse or drag and drop your file here</span>
-              <span className="file-rules"><FileText size={14} /> CSV format <i /> Local preview</span>
+              <span className="drop-description">
+                Click to browse or drag and drop your file here
+              </span>
+              <span className="file-rules">
+                <FileText size={14} /> CSV format <i /> Local preview
+              </span>
             </label>
 
             {fileName && (
               <div className="file-selected">
                 <CheckCircle2 size={18} />
-                <span><strong>{fileName}</strong><small>Ready for preview</small></span>
+                <span>
+                  <strong>{fileName}</strong>
+                  <small>Ready for preview</small>
+                </span>
                 <button
                   className="remove-file"
-                  onClick={() => {
-                    setFileName('')
-                    setHeaders([])
-                    setRows([])
-                    setSearch('')
-                    setError('')
-                  }}
+                  onClick={removeFile}
                   aria-label="Remove selected file"
-                ><X size={17} /></button>
+                >
+                  <X size={17} />
+                </button>
               </div>
             )}
 
             {error && <p className="error-message">{error}</p>}
-            <p className="privacy-note"><ShieldCheck size={15} /> Your file is previewed locally in this browser.</p>
+
+            <p className="privacy-note">
+              <ShieldCheck size={15} />
+              Your file is previewed locally in this browser.
+            </p>
           </article>
 
-          <article className="panel preview-panel" id="results">
+          <article className="panel preview-panel" id="preview">
             <div className="panel-heading">
-              <div className="panel-title-icon cyan-icon"><Database size={23} /></div>
+              <div className="panel-title-icon cyan-icon">
+                <Database size={23} />
+              </div>
               <div className="panel-title-copy">
                 <h2>Dataset Preview</h2>
                 <p>Review your uploaded CSV data below.</p>
@@ -290,7 +362,9 @@ function App() {
                   onChange={event => setSearch(event.target.value)}
                 />
               </div>
-              <span className="row-count">{filteredRows.length} of {rows.length} rows</span>
+              <span className="row-count">
+                {filteredRows.length} of {rows.length} rows
+              </span>
             </div>
 
             {headers.length ? (
@@ -300,7 +374,9 @@ function App() {
                     <tr>
                       <th>#</th>
                       {headers.map((header, index) => (
-                        <th key={index}>{header || `Column ${index + 1}`}</th>
+                        <th key={index}>
+                          {header || `Column ${index + 1}`}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -315,14 +391,22 @@ function App() {
                     ))}
                   </tbody>
                 </table>
+
                 {filteredRows.length > 100 && (
-                  <p className="table-note">Showing the first 100 matching rows.</p>
+                  <p className="table-note">
+                    Showing the first 100 matching rows.
+                  </p>
                 )}
-                {filteredRows.length === 0 && <p className="table-note">No matching rows found.</p>}
+
+                {filteredRows.length === 0 && (
+                  <p className="table-note">No matching rows found.</p>
+                )}
               </div>
             ) : (
               <div className="empty-table">
-                <div className="database-illustration"><Database size={35} /></div>
+                <div className="database-illustration">
+                  <Database size={35} />
+                </div>
                 <strong>No data to display</strong>
                 <p>Upload a CSV file to see your dataset preview here.</p>
               </div>
@@ -332,28 +416,84 @@ function App() {
 
         <section className="panel analysis-panel" id="analysis">
           <div className="analysis-copy">
-            <div className="panel-title-icon"><Activity size={23} /></div>
+            <div className="panel-title-icon">
+              <Activity size={23} />
+            </div>
             <div>
-              <h2>Analysis workspace</h2>
-              <p>Your data summary, causal results and charts will appear here when the analysis features are connected.</p>
+              <h2>Causal Results</h2>
+              <p>
+                Causal estimates, charts and diagnostics will appear here
+                when the analysis pipeline is connected.
+              </p>
             </div>
           </div>
+
           <div className="analysis-visual" aria-hidden="true">
             <div className="chart-card">
               <div className="mini-bars">
                 <i /><i /><i /><i /><i /><i />
               </div>
-              <div className="mini-line"><Activity size={50} /></div>
+              <div className="mini-line">
+                <Activity size={50} />
+              </div>
             </div>
             <div className="analysis-caption">
-              <strong>From data to decisions</strong>
-              <p>Build a clearer understanding of your data and its relationships.</p>
+              <strong>Analysis workspace</strong>
+              <p>No causal findings are available yet.</p>
             </div>
           </div>
         </section>
 
+        <section className="panel" id="budget" style={{ marginTop: 20 }}>
+          <div className="panel-heading">
+            <div className="panel-title-icon">
+              <BarChart3 size={23} />
+            </div>
+            <div className="panel-title-copy">
+              <h2>Budget Allocation</h2>
+              <p>
+                The allocation interface will be developed when the
+                optimization requirements and API are ready.
+              </p>
+            </div>
+            <span className="step-badge">COMING NEXT</span>
+          </div>
+
+          <div className="empty-table">
+            <div className="database-illustration">
+              <Workflow size={35} />
+            </div>
+            <strong>Optimization not connected</strong>
+            <p>
+              No budget recommendations are being generated at this stage.
+            </p>
+          </div>
+        </section>
+
+        <section className="panel" id="settings" style={{ marginTop: 20 }}>
+          <div className="panel-heading">
+            <div className="panel-title-icon">
+              <Settings size={23} />
+            </div>
+            <div className="panel-title-copy">
+              <h2>Workspace Settings</h2>
+              <p>Project interface and workspace information.</p>
+            </div>
+          </div>
+          <p className="privacy-note">
+            EconoCausal · Smart Automation · Team Brainbyte
+          </p>
+        </section>
+
+        <p className="privacy-note">
+          <ShieldCheck size={15} />
+          Decision-support outputs depend on data quality, model assumptions
+          and validation. This dashboard does not present placeholder content
+          as verified causal findings.
+        </p>
+
         <footer className="footer">
-          <span>© 2026 EconoCausal <i /> Team 27</span>
+          <span>© 2026 EconoCausal <i /> Brainbyte</span>
           <span>Smart Automation <i /> Causal Intelligence <i /> Better Decisions</span>
         </footer>
       </main>
