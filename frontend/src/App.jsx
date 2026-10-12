@@ -15,6 +15,7 @@ function App() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   function parseCSVLine(line) {
     const values = []
@@ -52,6 +53,7 @@ function App() {
     }
 
     setError('')
+    setIsLoading(true)
     const reader = new FileReader()
 
     reader.onload = (event) => {
@@ -71,12 +73,21 @@ function App() {
         setHeaders(columns)
         setRows(data)
         setSearch('')
+     
       } catch {
         setError('Unable to read this CSV file.')
+      } finally {
+        setIsLoading(false)
       }
     }
+    
 
-    reader.onerror = () => setError('Unable to read this file.')
+    
+reader.onerror = () => {
+  setError('Unable to read this file.')
+  setIsLoading(false)
+}
+
     reader.readAsText(file)
   }
 
@@ -141,7 +152,7 @@ function App() {
             <Sparkles size={20} />
           </div>
           <div>
-            <strong>Brainbyte</strong>
+            <strong>27</strong>
             <small>Frontend Workspace</small>
           </div>
           <span className="online-dot" />
@@ -333,11 +344,13 @@ function App() {
             )}
 
             {error && <p className="error-message">{error}</p>}
+            {isLoading && <p>Reading your CSV file...</p>}
 
-            <p className="privacy-note">
-              <ShieldCheck size={15} />
-              Your file is previewed locally in this browser.
-            </p>
+<p className="privacy-note">
+  <ShieldCheck size={15} />
+  Your file is previewed locally in this browser. Do not upload sensitive
+  or private customer data unless the location is approved by your team.
+</p>
           </article>
 
           <article className="panel preview-panel" id="preview">
@@ -481,7 +494,7 @@ function App() {
             </div>
           </div>
           <p className="privacy-note">
-            EconoCausal · Smart Automation · Team Brainbyte
+            EconoCausal · Smart Automation · Team 27
           </p>
         </section>
 
@@ -493,7 +506,7 @@ function App() {
         </p>
 
         <footer className="footer">
-          <span>© 2026 EconoCausal <i /> Brainbyte</span>
+          <span>© 2026 EconoCausal <i /> 27</span>
           <span>Smart Automation <i /> Causal Intelligence <i /> Better Decisions</span>
         </footer>
       </main>
