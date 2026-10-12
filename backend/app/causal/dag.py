@@ -1,25 +1,34 @@
 
-"""
-Initial causal DAG for EconoCausal.
+"""Initial causal DAG for EconoCausal."""
 
-Treatment: discount_offered
-Outcome: purchased
+class SimpleDAG:
+    """Minimal directed graph implementation without external libraries."""
 
-Candidate confounders must be verified as pre-treatment variables.
-"""
+    def __init__(self):
+        self.nodes = set()
+        self.edges = set()
 
-import networkx as nx
+    def add_node(self, node):
+        self.nodes.add(node)
+
+    def add_edge(self, source, target):
+        self.nodes.update([source, target])
+        self.edges.add((source, target))
+
+    def number_of_nodes(self):
+        return len(self.nodes)
+
+    def number_of_edges(self):
+        return len(self.edges)
+
+    def has_edge(self, source, target):
+        return (source, target) in self.edges
 
 
-def build_causal_dag() -> nx.DiGraph:
+def build_causal_dag():
     """Build the initial hypothesized causal graph."""
+    dag = SimpleDAG()
 
-    dag = nx.DiGraph()
-
-    # Treatment and outcome
-    dag.add_edge("discount_offered", "purchased")
-
-    # Candidate pre-treatment covariates from the dataset
     covariates = [
         "age",
         "income_bracket",
@@ -35,12 +44,8 @@ def build_causal_dag() -> nx.DiGraph:
         "previous_discounts_accepted",
     ]
 
-    dag.add_nodes_from(covariates)
+    dag.add_edge("discount_offered", "purchased")
 
-    # Initial hypotheses:
-    # Customer characteristics may influence discount assignment
-    # and purchase behavior. Validate these relationships with the
-    # project team and data-generation process before causal estimation.
     for feature in covariates:
         dag.add_edge(feature, "discount_offered")
         dag.add_edge(feature, "purchased")
