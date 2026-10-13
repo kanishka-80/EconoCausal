@@ -72,3 +72,24 @@ def test_causal_analyze_rejects_identical_treatment_and_outcome():
     response = client.post("/api/causal/analyze", json=payload)
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "INVALID_COLUMN_SPECIFICATION"
+def test_causal_results_lookup_and_not_found():
+    # 1. Create a run
+    payload = {
+        "treatment_column": "discount_offered",
+        "outcome_column": "purchased",
+        "confounders": ["income", "age"],
+    }
+    create_res = client.post("/api/causal/analyze", json=payload)
+    assert create_res.status_code == 200
+    run_id = create_res.json()["data"]["run_id"]
+
+    # 2. Retrieve existing run
+    fetch_res = client.get(f"/api/causal/results/{run_id}")
+    assert fetch_res.status_code == 200
+    assert fetch_res.json()["data"]["run_id"] == run_id
+    assert fetch_res.json()["data"]["is_mock"] is True
+
+    # 3. Retrieve non-existent run
+    missing_res = client.get("/api/causal/results/run-doesnotexist")
+    assert missing_res.status_code == 404
+    assert missing_res.json()["detail"]["code"] == "RUN_NOT_FOUND"

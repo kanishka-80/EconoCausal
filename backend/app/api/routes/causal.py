@@ -1,11 +1,7 @@
-import uuid
-from fastapi import APIRouter, HTTPException, status
-from backend.app.schemas.causal import (
-    CausalAnalysisData,
-    CausalAnalysisRequest,
-    TreatmentEffectSummary,
-)
+from fastapi import APIRouter
+from backend.app.schemas.causal import CausalAnalysisData, CausalAnalysisRequest
 from backend.app.schemas.common import ErrorResponse, StandardResponse
+from backend.app.services.causal_service import causal_service
 
 router = APIRouter(prefix="/causal", tags=["causal"])
 
@@ -19,30 +15,17 @@ router = APIRouter(prefix="/causal", tags=["causal"])
     },
 )
 async def analyze_treatment_effects(payload: CausalAnalysisRequest):
-    # Route input sanity validation
-    if payload.treatment_column == payload.outcome_column:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "code": "INVALID_COLUMN_SPECIFICATION",
-                "message": "Treatment column and outcome column cannot be identical.",
-                "details": [],
-            },
-        )
+    result = causal_service.run_analysis(payload)
+    return StandardResponse(data=result)
 
-    # Week 1 Day 3 placeholder response: clearly marked not-run/placeholder
-    analysis_data = CausalAnalysisData(
-        run_id=f"run-{uuid.uuid4().hex[:8]}",
-        status="COMPLETED",
-        estimator_used="LinearDML",
-        ate_summary=TreatmentEffectSummary(
-            average_treatment_effect=2.45,
-            confidence_interval_lower=1.80,
-            confidence_interval_upper=3.10,
-        ),
-        diagnostics={
-            "refutation_status": "PENDING_ML_INTEGRATION",
-            "open_decisions": "Discrete levels vs continuous treatment pending team freeze",
-        },
-    )
-    return StandardResponse(data=analysis_data)
+
+@router.get(
+    "/results/{run_id}",
+    response_model=StandardResponse[CausalAnalysisData],
+    responses={
+        404: {"model": ErrorResponse},
+    },
+)
+async def get_causal_results(run_id: str):
+    result = causal_service.get_run_by_id(run_id)
+    return StandardResponse(data=result)

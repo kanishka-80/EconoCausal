@@ -6,7 +6,6 @@ class CausalAnalysisRequest(BaseModel):
     treatment_column: str = Field(description="Name of the treatment/discount column")
     outcome_column: str = Field(description="Name of the outcome/target column")
     confounders: List[str] = Field(min_length=1, description="List of pre-treatment covariates to control for")
-    # Open decision: discrete discount levels vs continuous pricing treatment
     treatment_levels: Optional[List[float]] = Field(default=None, description="Supported discrete discount levels (pending ML freeze)")
 
 
@@ -18,8 +17,8 @@ class TreatmentEffectSummary(BaseModel):
 
 class CausalAnalysisData(BaseModel):
     run_id: str = Field(description="Unique identifier for the causal analysis run")
-    status: str = Field(default="COMPLETED", description="Analysis status: PENDING, COMPLETED, FAILED")
-    estimator_used: str = Field(default="LinearDML", description="EconML estimator name")
+    status: str = Field(default="COMPLETED", description="Analysis status: PENDING, COMPLETED, FAILED, NOT_FOUND")
+    estimator_used: str = Field(default="LinearDML (Mock Scaffold)", description="EconML estimator name")
+    is_mock: bool = Field(default=True, description="Explicit flag indicating mock/placeholder calculation for Week 1")
     ate_summary: TreatmentEffectSummary = Field(description="Primary effect estimates")
-    # Open decision: refutation test types to surface to frontend
     diagnostics: Dict[str, Any] = Field(default_factory=dict, description="DoWhy refutation check outputs (placeholder)")
