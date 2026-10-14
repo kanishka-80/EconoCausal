@@ -93,3 +93,25 @@ def test_causal_results_lookup_and_not_found():
     missing_res = client.get("/api/causal/results/run-doesnotexist")
     assert missing_res.status_code == 404
     assert missing_res.json()["detail"]["code"] == "RUN_NOT_FOUND"
+def test_optimization_run_valid_payload():
+    payload = {
+        "budget": 50.0,
+        "available_discounts": [10.0],
+        "customer_ids": ["c1", "c2"],
+    }
+    response = client.post("/api/optimization/run", json=payload)
+    assert response.status_code == 200
+    res_json = response.json()
+    assert res_json["status"] == "success"
+    assert res_json["data"]["is_mock"] is True
+    assert res_json["data"]["total_spend"] == 20.0
+
+
+def test_optimization_run_rejects_non_positive_budget():
+    payload = {
+        "budget": 0.0,
+        "available_discounts": [10.0],
+        "customer_ids": ["c1"],
+    }
+    response = client.post("/api/optimization/run", json=payload)
+    assert response.status_code == 422

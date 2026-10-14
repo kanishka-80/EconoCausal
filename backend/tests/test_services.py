@@ -43,3 +43,19 @@ def test_causal_service_missing_run():
         service.get_run_by_id("non-existent-run")
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail["code"] == "RUN_NOT_FOUND"
+from backend.app.schemas.optimization import OptimizationRequest
+from backend.app.services.optimization_service import OptimizationService
+
+
+def test_optimization_service_mock_run():
+    service = OptimizationService()
+    req = OptimizationRequest(
+        budget=100.0,
+        available_discounts=[10.0, 20.0],
+        customer_ids=["c1", "c2", "c3"],
+    )
+    result = service.run_optimization(req)
+    assert result.is_mock is True
+    assert result.status == "SCAFFOLD_MOCK"
+    assert result.total_spend <= 100.0
+    assert len(result.allocation) == 3
