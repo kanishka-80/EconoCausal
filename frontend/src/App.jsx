@@ -54,12 +54,20 @@ function App() {
 
     setError('')
     setIsLoading(true)
+    setFileName('')
+    setHeaders([])
+    setRows([])
+    setSearch('')
+
     const reader = new FileReader()
 
     reader.onload = (event) => {
       try {
         const content = String(event.target.result || '')
-        const lines = content.split(/\r?\n/).filter(line => line.trim())
+        const lines = content
+          .replace(/^\uFEFF/, '')
+          .split(/\r?\n/)
+          .filter(line => line.trim())
 
         if (lines.length < 2) {
           setError('This file is empty or has no data rows.')
@@ -67,26 +75,28 @@ function App() {
         }
 
         const columns = parseCSVLine(lines[0])
+
+        if (!columns.length || columns.every(column => !column)) {
+          setError('The CSV file must contain column headers.')
+          return
+        }
+
         const data = lines.slice(1).map(parseCSVLine)
 
         setFileName(file.name)
         setHeaders(columns)
         setRows(data)
-        setSearch('')
-     
       } catch {
         setError('Unable to read this CSV file.')
       } finally {
         setIsLoading(false)
       }
     }
-    
 
-    
-reader.onerror = () => {
-  setError('Unable to read this file.')
-  setIsLoading(false)
-}
+    reader.onerror = () => {
+      setError('Unable to read this file.')
+      setIsLoading(false)
+    }
 
     reader.readAsText(file)
   }
@@ -97,7 +107,22 @@ reader.onerror = () => {
     setRows([])
     setSearch('')
     setError('')
+    setIsLoading(false)
   }
+
+  const missingValues = rows.reduce((total, row) => {
+    return total + headers.reduce((count, _, index) => {
+      const value = String(row[index] ?? '').trim()
+      return count + (value === '' ? 1 : 0)
+    }, 0)
+  }, 0)
+
+  const totalRows = rows.length
+  const totalColumns = headers.length
+
+  const isSyntheticDataset =
+    fileName.toLowerCase().includes('synthetic') ||
+    fileName.toLowerCase().includes('demo')
 
   const filteredRows = rows.filter(row =>
     row.some(cell =>
@@ -220,6 +245,7 @@ reader.onerror = () => {
           </div>
         </section>
 
+        {/* Existing dashboard cards */}
         <section className="stats-grid">
           <article className="stat-card blue">
             <div className="stat-top">
@@ -280,6 +306,40 @@ reader.onerror = () => {
             <h2>Not available</h2>
             <small>Waiting for optimization functionality</small>
           </article>
+
+          {/* Day 4: Dataset summary cards */}
+          <article className="stat-card blue">
+            <div className="stat-top">
+              <span className="stat-icon">
+                <Database size={22} />
+              </span>
+            </div>
+            <p>Total Rows</p>
+            <h2>{totalRows.toLocaleString()}</h2>
+            <small>Rows in uploaded dataset</small>
+          </article>
+
+          <article className="stat-card cyan">
+            <div className="stat-top">
+              <span className="stat-icon">
+                <FileSpreadsheet size={22} />
+              </span>
+            </div>
+            <p>Total Columns</p>
+            <h2>{totalColumns}</h2>
+            <small>Columns detected</small>
+          </article>
+
+          <article className="stat-card amber">
+            <div className="stat-top">
+              <span className="stat-icon">
+                <ShieldCheck size={22} />
+              </span>
+            </div>
+            <p>Missing Values</p>
+            <h2>{missingValues.toLocaleString()}</h2>
+            <small>Blank cells in the dataset</small>
+          </article>
         </section>
 
         <section className="work-grid" id="upload">
@@ -311,7 +371,10 @@ reader.onerror = () => {
               <input
                 type="file"
                 accept=".csv,text/csv"
-                onChange={event => processFile(event.target.files[0])}
+                onChange={event => {
+                  processFile(event.target.files[0])
+                  event.target.value = ''
+                }}
               />
 
               <span className="drop-icon">
@@ -331,7 +394,11 @@ reader.onerror = () => {
                 <CheckCircle2 size={18} />
                 <span>
                   <strong>{fileName}</strong>
-                  <small>Ready for preview</small>
+                  <small>
+                    {isSyntheticDataset
+                      ? 'Synthetic / demo dataset'
+                      : 'Dataset selected; source not verified'}
+                  </small>
                 </span>
                 <button
                   className="remove-file"
@@ -343,14 +410,20 @@ reader.onerror = () => {
               </div>
             )}
 
-            {error && <p className="error-message">{error}</p>}
-            {isLoading && <p>Reading your CSV file...</p>}
+            {error && (
+              <p className="error-message" role="alert">{error}</p>
+            )}
 
-<p className="privacy-note">
-  <ShieldCheck size={15} />
-  Your file is previewed locally in this browser. Do not upload sensitive
-  or private customer data unless the location is approved by your team.
-</p>
+            {isLoading && (
+              <p role="status">Reading your CSV file...</p>
+            )}
+
+            <p className="privacy-note">
+              <ShieldCheck size={15} />
+              Your file is previewed locally in this browser. Do not upload
+              sensitive or private customer data unless the location is
+              approved by your team.
+            </p>
           </article>
 
           <article className="panel preview-panel" id="preview">
@@ -365,6 +438,14 @@ reader.onerror = () => {
               <span className="step-badge">STEP 02</span>
             </div>
 
+            {fileName && (
+              <p className="privacy-note">
+                {isSyntheticDataset
+                  ? 'Synthetic / demo data: use for interface and pipeline testing, not as verified real-world evidence.'
+                  : 'Dataset source has not been verified. Check its origin before interpreting analysis results.'}
+              </p>
+            )}
+
             <div className="table-toolbar">
               <div className="search-box">
                 <Search size={17} />
@@ -373,10 +454,12 @@ reader.onerror = () => {
                   placeholder="Search in dataset..."
                   value={search}
                   onChange={event => setSearch(event.target.value)}
+                  aria-label="Search in dataset"
                 />
               </div>
               <span className="row-count">
-                {filteredRows.length} of {rows.length} rows
+                {filteredRows.length.toLocaleString()} of{' '}
+                {rows.length.toLocaleString()} rows
               </span>
             </div>
 
@@ -398,7 +481,9 @@ reader.onerror = () => {
                       <tr key={index}>
                         <td className="row-number">{index + 1}</td>
                         {headers.map((_, colIndex) => (
-                          <td key={colIndex}>{row[colIndex] ?? ''}</td>
+                          <td key={colIndex}>
+                            {row[colIndex] ?? ''}
+                          </td>
                         ))}
                       </tr>
                     ))}
@@ -507,7 +592,9 @@ reader.onerror = () => {
 
         <footer className="footer">
           <span>© 2026 EconoCausal <i /> 27</span>
-          <span>Smart Automation <i /> Causal Intelligence <i /> Better Decisions</span>
+          <span>
+            Smart Automation <i /> Causal Intelligence <i /> Better Decisions
+          </span>
         </footer>
       </main>
     </div>
