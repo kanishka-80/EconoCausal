@@ -19,6 +19,14 @@ Where appropriate for the selected treatment design:
 - Flag extreme propensity scores or insufficient overlap.
 - Report unsupported configurations and small-group limitations.
 
+- Report the minimum and maximum estimated propensity probabilities.
+- Flag near-zero probabilities and insufficient overlap for review.
+- Mark comparisons with small treatment groups as potentially unstable.
+- Report standardized mean differences (SMD) for eligible numeric covariates,
+  and flag absolute SMD values of 0.1 or greater for review.
+- Treat raw imbalance as a diagnostic finding, not evidence of a causal effect.
+
+
 These diagnostics support the analysis; they do not establish causality.
 
 ## 4. DML Evaluation — Week 2 Dependency
@@ -33,7 +41,7 @@ Before evaluating it, confirm:
 Do not report final treatment-effect estimates before the estimator and data pipeline are ready.
 
 ## 5. DoWhy Refutation Checks
-Select checks that are appropriate for the chosen causal model and datas.
+Select checks that are appropriate for the chosen causal model and dataset.
 
 For each check, record:
 - Check name
