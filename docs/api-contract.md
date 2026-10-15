@@ -153,3 +153,17 @@
 2. **Outcome Metric (Team Decision):** Binary conversion (\purchased\) vs continuous revenue (\spend\).
 3. **Optimizer Objective (Harsh/Team):** Maximize predicted revenue vs maximize incremental profit (requires contribution margin and offer cost).
 4. **Offer Constraint (Team Decision):** Enforce exactly at most one offer per customer vs multiple offer combinations.
+
+---
+
+## 4. Frontend Integration & CORS
+
+- **CORS Allowed Origins:** \http://localhost:3000\, \http://localhost:5173\, \http://127.0.0.1:3000\, \http://127.0.0.1:5173\
+- **Interactive Documentation:** Available at \/docs\ (Swagger UI) and \/redoc\
+- **Pipeline Workflow Sequence:**
+  1. \GET /api/health\ — Connectivity check
+  2. \POST /api/data/upload\ — CSV file upload
+  3. \GET /api/data/summary\ — Profile statistics
+  4. \POST /api/causal/analyze\ — Trigger analysis run
+  5. \GET /api/causal/results/{run_id}\ — Poll or fetch analysis result
+  6. \POST /api/optimization/run\ — Trigger budget-constrained allocation
