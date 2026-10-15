@@ -1,0 +1,114 @@
+
+"""Multi-treatment propensity score estimation."""
+
+import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+from backend.app.causal.dag import (
+    CANDIDATE_COVARIATES,
+    TREATMENT,
+)
+
+
+def estimate_propensity_scores(
+    data: pd.DataFrame,
+    treatment_col: str = TREATMENT,
+    covariates: list[str] | None = None,
+) -> pd.DataFrame:
+    """Estimate probability of each observed treatment level."""
+
+    features = (
+        CANDIDATE_COVARIATES if covariates is None else covariates
+    )
+
+    if treatment_col not in data.columns:
+        raise ValueError(f"Missing treatment column: {treatment_col}")
+
+    if not features:
+        raise ValueError("At least one covariate is required.")
+
+    missing = [col for col in features if col not in data.columns]
+    if missing:
+        raise ValueError(f"Missing covariates: {missing}")
+
+    if data[treatment_col].isna().any():
+        raise ValueError("Treatment column contains missing values.")
+
+    if data[treatment_col].nunique() < 2:
+        raise ValueError("At least two treatment groups are required.")
+
+    X = data[features].copy()
+    y = data[treatment_col].copy()
+
+    numeric_cols = X.select_dtypes(include="number").columns.tolist()
+    categorical_cols = [
+        col for col in features if col not in numeric_cols
+    ]
+
+    transformers = []
+
+    if numeric_cols:
+        transformers.append((
+            "numeric",
+            Pipeline([
+                ("imputer", SimpleImputer(strategy="median")),
+                ("scaler", StandardScaler()),
+            ]),
+            numeric_cols,
+        ))
+
+    if categorical_cols:
+        transformers.append((
+            "categorical",
+            Pipeline([
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("onehot", OneHotEncoder(handle_unknown="ignore")),
+            ]),
+            categorical_cols,
+        ))
+
+    model = Pipeline([
+        ("preprocess", ColumnTransformer(transformers)),
+        ("classifier", LogisticRegression(max_iter=2000)),
+    ])
+
+    model.fit(X, y)
+    classifier = model.named_steps["classifier"]
+
+    return pd.DataFrame(
+        model.predict_proba(X),
+        index=data.index,
+        columns=[
+            f"propensity_{level}" for level in classifier.classes_
+        ],
+    )
+
+
+def propensity_diagnostics(scores: pd.DataFrame) -> dict:
+    """Check probability validity and basic overlap indicators."""
+
+    if scores.empty or scores.shape[1] < 2:
+        raise ValueError("At least two treatment groups are required.")
+
+    if scores.isna().any().any():
+        raise ValueError("Scores contain missing values.")
+
+    values = scores.to_numpy()
+
+    if ((values < 0) | (values > 1)).any():
+        raise ValueError("Scores must be between 0 and 1.")
+
+    return {
+        "n_observations": len(scores),
+        "n_treatment_groups": len(scores.columns),
+        "probabilities_sum_to_one": bool(
+            ((scores.sum(axis=1) - 1).abs() < 1e-6).all()
+        ),
+        "min_propensity": float(values.min()),
+        "max_propensity": float(values.max()),
+        "near_zero_probability_count": int((values < 0.01).sum()),
+    }

@@ -1,7 +1,7 @@
 
 import unittest
 
-from backend.app.causal.dag import (
+from EconoCausal.backend.app.causal.dag import (
     CANDIDATE_COVARIATES,
     OUTCOME,
     TREATMENT,
