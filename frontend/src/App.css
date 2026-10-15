@@ -1305,3 +1305,111 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     animation: none !important;
   }
 }
+/* Day 5: Causal Results panel */
+
+.causal-results-panel {
+  margin-top: 20px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0b1422, #101b30);
+}
+
+.causal-results-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  margin-bottom: 24px;
+}
+
+.causal-results-heading h2 {
+  margin: 4px 0 8px;
+}
+
+.causal-results-heading p {
+  color: #91a4c3;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.causal-results-heading .step-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.causal-result-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.causal-result-card {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(7, 12, 22, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.causal-result-card span {
+  color: #91a4c3;
+  font-size: 12px;
+}
+
+.causal-result-card strong {
+  color: #e6edff;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.causal-result-card small {
+  color: #8799b8;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.causal-result-card .causal-status {
+  color: #f0bd65;
+  font-size: 15px;
+}
+
+.causal-results-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(87, 149, 255, 0.07);
+  color: #91a4c3;
+}
+
+.causal-results-notice svg {
+  flex-shrink: 0;
+  color: var(--blue);
+}
+
+.causal-results-notice p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+@media (max-width: 760px) {
+  .causal-result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .causal-results-heading {
+    flex-wrap: wrap;
+  }
+
+  .causal-results-heading .step-badge {
+    margin-left: 0;
+  }
+}

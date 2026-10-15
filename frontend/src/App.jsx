@@ -512,36 +512,49 @@ function App() {
           </article>
         </section>
 
-        <section className="panel analysis-panel" id="analysis">
-          <div className="analysis-copy">
+              <section className="panel causal-results-panel" id="analysis">
+          <div className="causal-results-heading">
             <div className="panel-title-icon">
               <Activity size={23} />
             </div>
             <div>
               <h2>Causal Results</h2>
               <p>
-                Causal estimates, charts and diagnostics will appear here
-                when the analysis pipeline is connected.
+                Review treatment effects and model diagnostics when the
+                causal analysis pipeline is connected.
               </p>
             </div>
+            <span className="step-badge">STEP 03</span>
           </div>
 
-          <div className="analysis-visual" aria-hidden="true">
-            <div className="chart-card">
-              <div className="mini-bars">
-                <i /><i /><i /><i /><i /><i />
-              </div>
-              <div className="mini-line">
-                <Activity size={50} />
-              </div>
-            </div>
-            <div className="analysis-caption">
-              <strong>Analysis workspace</strong>
-              <p>No causal findings are available yet.</p>
-            </div>
+          <div className="causal-result-grid">
+            <article className="causal-result-card">
+              <span>Treatment Effect</span>
+              <strong>Not available</strong>
+              <small>Awaiting model output</small>
+            </article>
+
+            <article className="causal-result-card">
+              <span>Confidence Interval</span>
+              <strong>Not available</strong>
+              <small>Awaiting statistical estimates</small>
+            </article>
+
+            <article className="causal-result-card">
+              <span>Analysis Status</span>
+              <strong className="causal-status">Waiting for model</strong>
+              <small>Backend integration pending</small>
+            </article>
+          </div>
+
+          <div className="causal-results-notice">
+            <Activity size={18} />
+            <p>
+              No causal estimates are available yet. Actual results will
+              appear after the causal model is connected and validated.
+            </p>
           </div>
         </section>
-
         <section className="panel" id="budget" style={{ marginTop: 20 }}>
           <div className="panel-heading">
             <div className="panel-title-icon">
