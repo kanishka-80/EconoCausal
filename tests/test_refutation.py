@@ -35,7 +35,7 @@ def test_format_refutation_result():
     assert result["check_name"] == "random_common_cause"
     assert result["status"] == "passed"
     assert result["result"] == {"details": "test result"}
-    assert result["causal_claim_proven"] if "causal_claim_proven" in result else True
+    assert result["causal_claim_proven"] is False
     assert result["limitations"] == "Does not prove causality."
 
 

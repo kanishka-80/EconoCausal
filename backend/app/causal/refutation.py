@@ -40,3 +40,31 @@ def run_refutation_checks(causal_model, identified_estimand, estimate) -> dict:
         "results": results,
         "causal_claim_proven": False,
     }
+
+
+def format_refutation_result(
+    check_name: str,
+    status: str,
+    result=None,
+    configuration: dict | None = None,
+    interpretation: str = "",
+    limitations: str = "",
+) -> dict:
+    """Format a refutation check result consistently."""
+
+    if check_name not in REFUTATION_METHODS:
+        raise ValueError(f"Unsupported refutation check: {check_name}")
+
+    allowed_statuses = {"planned", "passed", "failed", "skipped", "error"}
+    if status not in allowed_statuses:
+        raise ValueError(f"Unsupported status: {status}")
+
+    return {
+        "check_name": check_name,
+        "status": status,
+        "result": result,
+        "configuration": configuration or {},
+        "interpretation": interpretation,
+        "limitations": limitations,
+        "causal_claim_proven": False,
+    }
