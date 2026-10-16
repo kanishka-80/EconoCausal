@@ -11,7 +11,11 @@ from dataclasses import dataclass, field
 TREATMENT = "discount_offered"
 OUTCOME = "purchased"
 
-# Candidate features only. Confirm they were measured before treatment.
+# Provisional candidates only.
+# Treatment assignment logic is undocumented.
+# Include a covariate in adjustment only after confirming that it
+# was measured before treatment and is justified by the causal model.
+
 CANDIDATE_COVARIATES = [
     "age",
     "income_bracket",
