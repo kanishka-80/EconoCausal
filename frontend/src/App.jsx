@@ -8,6 +8,77 @@ import {
 } from 'lucide-react'
 import './App.css'
 
+function BudgetAllocationPreview() {
+  const [budget, setBudget] = useState("");
+  const [error, setError] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+
+  function handlePreview() {
+    const amount = Number(budget);
+
+    if (budget.trim() === "" || !Number.isFinite(amount) || amount <= 0) {
+      setError("Please enter a budget greater than zero.");
+      setShowPreview(false);
+      return;
+    }
+
+    setError("");
+    setShowPreview(true);
+  }
+
+  return (
+    <div className="budget-preview">
+      <div className="budget-input-area">
+        <label htmlFor="marketing-budget">Marketing budget</label>
+        <div className="budget-input-row">
+          <input
+            id="marketing-budget"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="Enter budget amount"
+            value={budget}
+            onChange={(event) => {
+              setBudget(event.target.value);
+              setError("");
+              setShowPreview(false);
+            }}
+          />
+          <button type="button" onClick={handlePreview}>
+            Preview scenario
+          </button>
+        </div>
+
+        {error && <p className="error-message">{error}</p>}
+      </div>
+
+      {showPreview && (
+        <div className="budget-scenario">
+          <strong>Budget received: {Number(budget).toLocaleString()}</strong>
+          <p>
+            Your budget input is valid. Allocation recommendations will appear
+            here after the optimization model and API are connected.
+          </p>
+          <span className="step-badge">PREVIEW ONLY</span>
+        </div>
+      )}
+
+      {!showPreview && !error && (
+        <div className="empty-table">
+          <div className="database-illustration">
+            <Workflow size={35} />
+          </div>
+          <strong>Allocation preview not generated</strong>
+          <p>
+            Enter a positive budget amount to validate your input and preview
+            the scenario.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [fileName, setFileName] = useState('')
   const [headers, setHeaders] = useState([])
@@ -555,31 +626,28 @@ function App() {
             </p>
           </div>
         </section>
-        <section className="panel" id="budget" style={{ marginTop: 20 }}>
-          <div className="panel-heading">
-            <div className="panel-title-icon">
-              <BarChart3 size={23} />
-            </div>
-            <div className="panel-title-copy">
-              <h2>Budget Allocation</h2>
-              <p>
-                The allocation interface will be developed when the
-                optimization requirements and API are ready.
-              </p>
-            </div>
-            <span className="step-badge">COMING NEXT</span>
-          </div>
+       
 
-          <div className="empty-table">
-            <div className="database-illustration">
-              <Workflow size={35} />
-            </div>
-            <strong>Optimization not connected</strong>
-            <p>
-              No budget recommendations are being generated at this stage.
-            </p>
-          </div>
-        </section>
+<section className="panel" id="budget" style={{ marginTop: 20 }}>
+  <div className="panel-heading">
+    <div className="panel-title-icon">
+      <BarChart3 size={23} />
+    </div>
+
+    <div className="panel-title-copy">
+      <h2>Budget Allocation</h2>
+      <p>
+        Enter a marketing budget to prepare an allocation scenario.
+        Actual recommendations require the connected optimization model.
+      </p>
+    </div>
+
+    <span className="step-badge">UI PREVIEW</span>
+  </div>
+
+  <BudgetAllocationPreview />
+</section>
+
 
         <section className="panel" id="settings" style={{ marginTop: 20 }}>
           <div className="panel-heading">
