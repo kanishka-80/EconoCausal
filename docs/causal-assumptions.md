@@ -65,3 +65,37 @@ as pre-treatment confounders.
 - Which candidate features were measured before treatment?
 - What is the purchase observation window?
 - Which treatment comparisons will the team estimate?
+
+## 8. DAG Implementation and Validation Status
+
+The current implementation in `backend/app/causal/dag.py`
+builds a provisional graph using `discount_offered` as the
+treatment and `purchased` as the outcome.
+
+Each candidate covariate is currently connected to both
+the treatment and the outcome. These edges represent
+hypothesized relationships and are not independently
+verified causal relationships.
+
+The `CausalDAG` class provides:
+- `has_edge(source, target)` to check whether an edge exists.
+- `number_of_nodes()` and `number_of_edges()` to inspect graph size.
+- `has_cycle()` to detect directed cycles.
+- `is_acyclic()` to check whether the graph is acyclic.
+
+Automated tests cover the expected graph structure, treatment
+and outcome presence, self-loops, cycle detection, and a
+disconnected acyclic graph.
+
+### Interpretation and limitations
+
+- An acyclic graph satisfies a structural DAG requirement;
+  it does not establish that the causal assumptions are correct.
+- Candidate covariates must be reviewed for availability,
+  timing before treatment, and causal justification.
+- The treatment assignment mechanism and purchase observation
+  window remain unresolved.
+- The dataset is synthetic, and its balanced treatment counts
+  do not establish covariate overlap or causal validity.
+- The graph must be reviewed against the approved causal design
+  before its edges are treated as an agreed causal model.
