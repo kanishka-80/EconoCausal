@@ -1,6 +1,7 @@
 import io
 from fastapi.testclient import TestClient
 from backend.app.main import app
+from backend.app.services.data_service import DataService
 
 client = TestClient(app)
 
@@ -13,16 +14,17 @@ def test_health_check_returns_200():
     assert "version" in data
 
 
-def test_data_upload_valid_csv():
-    csv_content = b"customer_id,discount_offered,purchased\n1,10.0,1\n2,0.0,0\n"
-    files = {"file": ("test.csv", io.BytesIO(csv_content), "text/csv")}
-    response = client.post("/api/data/upload", files=files)
-    assert response.status_code == 200
-    res_json = response.json()
-    assert res_json["status"] == "success"
-    assert res_json["data"]["filename"] == "test.csv"
-    assert res_json["data"]["row_count"] == 2
-    assert "discount_offered" in res_json["data"]["columns"]
+def test_data_summary_before_upload_returns_404():
+    DataService.clear()
+    response = client.get("/api/data/summary")
+    assert response.status_code == 404
+    data = response.json()
+    assert data["detail"]["code"] == "NO_DATA_UPLOADED"
+
+
+def test_data_upload_missing_file_returns_422():
+    response = client.post("/api/data/upload")
+    assert response.status_code == 422
 
 
 def test_data_upload_rejects_non_csv():
@@ -40,13 +42,51 @@ def test_data_upload_rejects_empty_csv():
     assert response.json()["detail"]["code"] == "EMPTY_DATASET"
 
 
-def test_data_summary_returns_contract_shape():
+def test_data_upload_rejects_encoding_error():
+    invalid_bytes = b"customer_id,discount\n1,\xff\xfe"
+    files = {"file": ("corrupt.csv", io.BytesIO(invalid_bytes), "text/csv")}
+    response = client.post("/api/data/upload", files=files)
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "ENCODING_ERROR"
+
+
+def test_data_upload_valid_csv():
+    csv_text = "customer_id,discount_offered,purchased,historical_spend\n1001,10.0,1,250.5\n1002,20.0,0,100.0\n1003,10.0,1,\n"
+    files = {"file": ("test_dataset.csv", io.BytesIO(csv_text.encode("utf-8")), "text/csv")}
+    response = client.post("/api/data/upload", files=files)
+    assert response.status_code == 200
+    res_json = response.json()
+    assert res_json["status"] == "success"
+    data = res_json["data"]
+    assert data["filename"] == "test_dataset.csv"
+    assert data["row_count"] == 3
+    assert data["column_count"] == 4
+    assert data["validation_status"] == "VALID"
+    assert "discount_offered" in data["columns"]
+
+
+def test_data_summary_returns_contract_shape_and_dynamic_stats():
     response = client.get("/api/data/summary")
     assert response.status_code == 200
     res_json = response.json()
     assert res_json["status"] == "success"
-    assert res_json["data"]["preprocessing_status"] == "READY"
-    assert len(res_json["data"]["columns"]) > 0
+    data = res_json["data"]
+    assert data["row_count"] == 3
+    assert data["column_count"] == 4
+    assert data["preprocessing_status"] == "READY"
+
+    cols = {c["name"]: c for c in data["columns"]}
+    assert "historical_spend" in cols
+    assert cols["historical_spend"]["null_count"] == 1
+    assert cols["historical_spend"]["null_percentage"] > 0.0
+    assert cols["historical_spend"]["is_eligible_confounder"] is True
+    assert cols["customer_id"]["is_eligible_confounder"] is False
+
+    assert data["treatment_coverage"] is not None
+    assert data["treatment_coverage"]["treatment_column"] == "discount_offered"
+    assert data["treatment_coverage"]["unique_values"] == [10.0, 20.0]
+    assert data["treatment_coverage"]["counts"]["10.0"] == 2
+    assert data["treatment_coverage"]["counts"]["20.0"] == 1
 
 
 def test_causal_analyze_valid_payload():
@@ -72,8 +112,9 @@ def test_causal_analyze_rejects_identical_treatment_and_outcome():
     response = client.post("/api/causal/analyze", json=payload)
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "INVALID_COLUMN_SPECIFICATION"
+
+
 def test_causal_results_lookup_and_not_found():
-    # 1. Create a run
     payload = {
         "treatment_column": "discount_offered",
         "outcome_column": "purchased",
@@ -83,16 +124,16 @@ def test_causal_results_lookup_and_not_found():
     assert create_res.status_code == 200
     run_id = create_res.json()["data"]["run_id"]
 
-    # 2. Retrieve existing run
     fetch_res = client.get(f"/api/causal/results/{run_id}")
     assert fetch_res.status_code == 200
     assert fetch_res.json()["data"]["run_id"] == run_id
     assert fetch_res.json()["data"]["is_mock"] is True
 
-    # 3. Retrieve non-existent run
     missing_res = client.get("/api/causal/results/run-doesnotexist")
     assert missing_res.status_code == 404
     assert missing_res.json()["detail"]["code"] == "RUN_NOT_FOUND"
+
+
 def test_optimization_run_valid_payload():
     payload = {
         "budget": 50.0,

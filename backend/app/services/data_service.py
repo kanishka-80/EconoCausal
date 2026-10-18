@@ -1,6 +1,6 @@
-import csv
 import io
-from typing import List, Tuple
+from typing import Dict, List, Optional
+import pandas as pd
 from fastapi import HTTPException, status
 from backend.app.schemas.data import (
     ColumnProfile,
@@ -11,8 +11,20 @@ from backend.app.schemas.data import (
 
 
 class DataService:
-    @staticmethod
-    def parse_and_validate_csv(file_bytes: bytes, filename: str) -> UploadValidationData:
+    _current_df: Optional[pd.DataFrame] = None
+    _current_filename: Optional[str] = None
+
+    @classmethod
+    def get_current_dataframe(cls) -> Optional[pd.DataFrame]:
+        return cls._current_df
+
+    @classmethod
+    def clear(cls) -> None:
+        cls._current_df = None
+        cls._current_filename = None
+
+    @classmethod
+    def parse_and_validate_csv(cls, file_bytes: bytes, filename: str) -> UploadValidationData:
         if not filename.lower().endswith(".csv"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -23,33 +35,18 @@ class DataService:
                 },
             )
 
-        try:
-            decoded = file_bytes.decode("utf-8")
-            reader = csv.reader(io.StringIO(decoded))
-            rows = list(reader)
-
-            if not rows:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={
-                        "code": "EMPTY_DATASET",
-                        "message": "The uploaded CSV file is empty.",
-                        "details": [],
-                    },
-                )
-
-            headers = [h.strip() for h in rows[0]]
-            row_count = max(len(rows) - 1, 0)
-
-            return UploadValidationData(
-                filename=filename,
-                row_count=row_count,
-                column_count=len(headers),
-                columns=headers,
-                validation_status="VALID",
-                validation_errors=[],
+        if not file_bytes or len(file_bytes.strip()) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "EMPTY_DATASET",
+                    "message": "The uploaded CSV file is empty.",
+                    "details": [],
+                },
             )
 
+        try:
+            df = pd.read_csv(io.BytesIO(file_bytes))
         except UnicodeDecodeError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -59,58 +56,121 @@ class DataService:
                     "details": [],
                 },
             )
-        except HTTPException:
-            raise
+        except pd.errors.EmptyDataError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "EMPTY_DATASET",
+                    "message": "The uploaded CSV file contains no data or columns.",
+                    "details": [],
+                },
+            )
+        except pd.errors.ParserError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "MALFORMED_CSV",
+                    "message": f"Failed to parse CSV format: {str(e)}",
+                    "details": [],
+                },
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
                     "code": "PROCESSING_ERROR",
-                    "message": f"Failed to parse CSV: {str(e)}",
+                    "message": f"Failed to process CSV: {str(e)}",
                     "details": [],
                 },
             )
 
-    @staticmethod
-    def get_dataset_summary() -> DatasetSummaryData:
+        if df.empty or len(df.columns) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "EMPTY_DATASET",
+                    "message": "The uploaded CSV file contains no rows.",
+                    "details": [],
+                },
+            )
+
+        # Store validated dataframe and filename
+        cls._current_df = df
+        cls._current_filename = filename
+
+        return UploadValidationData(
+            filename=filename,
+            row_count=len(df),
+            column_count=len(df.columns),
+            columns=list(df.columns),
+            validation_status="VALID",
+            validation_errors=[],
+        )
+
+    @classmethod
+    def get_dataset_summary(cls) -> DatasetSummaryData:
+        if cls._current_df is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "NO_DATA_UPLOADED",
+                    "message": "No dataset has been uploaded yet. Please upload a CSV first.",
+                    "details": [],
+                },
+            )
+
+        df = cls._current_df
+        total_rows = len(df)
+        columns_profile: List[ColumnProfile] = []
+
+        special_cols = {
+            "customer_id",
+            "id",
+            "discount_offered",
+            "discount_amount",
+            "purchased",
+            "revenue",
+            "net_profit",
+        }
+
+        for col in df.columns:
+            null_count = int(df[col].isna().sum())
+            null_pct = round((null_count / total_rows * 100.0), 2) if total_rows > 0 else 0.0
+            is_confounder = str(col).lower() not in special_cols
+
+            columns_profile.append(
+                ColumnProfile(
+                    name=str(col),
+                    data_type=str(df[col].dtype),
+                    null_count=null_count,
+                    null_percentage=null_pct,
+                    is_eligible_confounder=is_confounder,
+                )
+            )
+
+        # Dynamic treatment coverage
+        treatment_cov: Optional[TreatmentCoverage] = None
+        treatment_col = None
+        for candidate in ["discount_offered", "discount_amount"]:
+            if candidate in df.columns:
+                treatment_col = candidate
+                break
+
+        if treatment_col is not None:
+            val_counts = df[treatment_col].value_counts(dropna=False).to_dict()
+            unique_vals = [float(k) for k in val_counts.keys() if pd.notna(k)]
+            counts_dict = {str(k): int(v) for k, v in val_counts.items()}
+            treatment_cov = TreatmentCoverage(
+                treatment_column=treatment_col,
+                unique_values=sorted(unique_vals),
+                counts=counts_dict,
+            )
+
         return DatasetSummaryData(
-            row_count=1000,
-            column_count=4,
-            columns=[
-                ColumnProfile(
-                    name="customer_id",
-                    data_type="string",
-                    null_count=0,
-                    null_percentage=0.0,
-                    is_eligible_confounder=False,
-                ),
-                ColumnProfile(
-                    name="discount_offered",
-                    data_type="float",
-                    null_count=0,
-                    null_percentage=0.0,
-                    is_eligible_confounder=False,
-                ),
-                ColumnProfile(
-                    name="purchased",
-                    data_type="int",
-                    null_count=0,
-                    null_percentage=0.0,
-                    is_eligible_confounder=False,
-                ),
-                ColumnProfile(
-                    name="income",
-                    data_type="float",
-                    null_count=10,
-                    null_percentage=1.0,
-                    is_eligible_confounder=True,
-                ),
-            ],
-            treatment_coverage=TreatmentCoverage(
-                treatment_column="discount_offered",
-                unique_values=[0.0, 10.0, 20.0],
-                counts={"0.0": 340, "10.0": 330, "20.0": 330},
-            ),
+            row_count=total_rows,
+            column_count=len(df.columns),
+            columns=columns_profile,
+            treatment_coverage=treatment_cov,
             preprocessing_status="READY",
         )
 
