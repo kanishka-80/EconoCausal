@@ -7,7 +7,9 @@ from backend.app.causal.propensity import (
     estimate_propensity_scores,
     propensity_diagnostics,
     covariate_balance_diagnostics,
+    categorical_balance_diagnostics,
 )
+
 
 
 class TestPropensity(unittest.TestCase):
@@ -97,6 +99,31 @@ class TestPropensity(unittest.TestCase):
         self.assertEqual(len(report), 6)
         self.assertIn("absolute_smd", report.columns)
         self.assertIn("imbalanced_at_0_1", report.columns)
+
+    def test_categorical_balance_returns_pairwise_results(self):
+        report = categorical_balance_diagnostics(
+            self.data,
+            covariates=["income_bracket"],
+        )
+
+        self.assertEqual(len(report), 6)
+        self.assertIn("max_abs_proportion_difference", report.columns)
+        self.assertIn("covariate", report.columns)
+
+    def test_categorical_balance_rejects_missing_covariate(self):
+        with self.assertRaises(ValueError):
+            categorical_balance_diagnostics(
+                self.data,
+                covariates=["unknown_feature"],
+            )
+
+    def test_categorical_balance_rejects_missing_treatment(self):
+        with self.assertRaises(ValueError):
+            categorical_balance_diagnostics(
+                self.data.drop(columns=["discount_offered"]),
+                covariates=["income_bracket"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
