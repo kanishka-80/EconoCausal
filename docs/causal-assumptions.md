@@ -131,3 +131,19 @@ The diagnostic report was generated as `covariate_balance_report.csv`. It contai
 
 ### Limitations and Follow-up
 These are preliminary, unadjusted diagnostics on synthetic data. They do not establish a causal effect or demonstrate adequate overlap. Covariate timing, categorical balance, treatment-assignment assumptions, and balance after any justified adjustment remain to be reviewed. Do not automatically treat all candidate covariates as valid pre-treatment confounders.
+
+### Categorical Covariate Balance
+
+- Implemented `categorical_balance_diagnostics()` in `backend/app/causal/propensity.py`.
+- The function compares category proportions between each pair of treatment groups and reports the maximum absolute proportion difference for each categorical covariate.
+- Eight categorical covariates were explored in the enriched synthetic dataset.
+- The standalone diagnostic script generated 48 pairwise comparisons across the eight categorical covariates and four treatment groups.
+- The largest observed maximum absolute proportion difference was 0.0226 for `product_category`, comparing discount levels 0 and 20.
+- The generated output was saved as `categorical_balance_report.csv`.
+- Automated tests cover successful pairwise comparison generation and rejection of a missing treatment column or missing covariate.
+
+### Interpretation and limitations
+
+- Category-level proportion differences are descriptive diagnostics; they are not standardized mean differences and should not be judged using the numeric SMD threshold of 0.1.
+- These results are unadjusted and do not establish adequate overlap, causal validity, or a treatment effect.
+- Categorical and numeric balance should be interpreted alongside verified pre-treatment feature timing and the approved causal design.
