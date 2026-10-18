@@ -145,14 +145,33 @@ function App() {
           return
         }
 
+       
         const columns = parseCSVLine(lines[0])
 
-        if (!columns.length || columns.every(column => !column)) {
+        if (!columns.length || columns.every(column => !column.trim())) {
           setError('The CSV file must contain column headers.')
           return
         }
 
+        if (columns.some(column => !column.trim())) {
+          setError('Each column must have a header. Please check the first row.')
+          return
+        }
+
         const data = lines.slice(1).map(parseCSVLine)
+
+        const invalidRowIndex = data.findIndex(
+          row => row.length !== columns.length
+        )
+
+        if (invalidRowIndex !== -1) {
+          const invalidRow = data[invalidRowIndex]
+
+          setError(
+            `Data row ${invalidRowIndex + 1} has ${invalidRow.length} columns; expected ${columns.length}. Please check your CSV file.`
+          )
+          return
+        }
 
         setFileName(file.name)
         setHeaders(columns)
