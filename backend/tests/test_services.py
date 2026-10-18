@@ -3,14 +3,16 @@ from fastapi import HTTPException
 from backend.app.schemas.causal import CausalAnalysisRequest
 from backend.app.services.data_service import DataService
 from backend.app.services.causal_service import CausalService
+from backend.app.schemas.optimization import OptimizationRequest
+from backend.app.services.optimization_service import OptimizationService
 
 
 def test_data_service_csv_validation():
-    csv_bytes = b"id,discount,sales\n1,10.0,100\n2,0.0,50\n"
+    csv_bytes = "id,discount_offered,sales\n1,10.0,100\n2,20.0,50\n".encode("utf-8")
     res = DataService.parse_and_validate_csv(csv_bytes, "valid.csv")
     assert res.validation_status == "VALID"
     assert res.row_count == 2
-    assert "discount" in res.columns
+    assert "discount_offered" in res.columns
 
 
 def test_data_service_rejects_non_csv():
@@ -18,6 +20,38 @@ def test_data_service_rejects_non_csv():
         DataService.parse_and_validate_csv(b"sample", "file.txt")
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail["code"] == "INVALID_FILE_FORMAT"
+
+
+def test_data_service_rejects_empty_csv():
+    with pytest.raises(HTTPException) as exc_info:
+        DataService.parse_and_validate_csv(b"   ", "empty.csv")
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "EMPTY_DATASET"
+
+
+def test_data_service_summary_no_data():
+    DataService.clear()
+    with pytest.raises(HTTPException) as exc_info:
+        DataService.get_dataset_summary()
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail["code"] == "NO_DATA_UPLOADED"
+
+
+def test_data_service_summary_dynamic_computation():
+    csv_bytes = "customer_id,discount_offered,purchased,age\n1,10.0,1,25\n2,10.0,0,30\n3,20.0,1,\n".encode("utf-8")
+    DataService.parse_and_validate_csv(csv_bytes, "data.csv")
+    summary = DataService.get_dataset_summary()
+    assert summary.row_count == 3
+    assert summary.column_count == 4
+    assert summary.treatment_coverage is not None
+    assert summary.treatment_coverage.treatment_column == "discount_offered"
+    assert summary.treatment_coverage.counts["10.0"] == 2
+    assert summary.treatment_coverage.counts["20.0"] == 1
+
+    col_map = {c.name: c for c in summary.columns}
+    assert col_map["age"].is_eligible_confounder is True
+    assert col_map["age"].null_count == 1
+    assert col_map["purchased"].is_eligible_confounder is False
 
 
 def test_causal_service_run_and_lookup():
@@ -32,7 +66,6 @@ def test_causal_service_run_and_lookup():
     assert result.status == "COMPLETED"
     assert result.ate_summary.average_treatment_effect > 0
 
-    # Test lookup
     lookup = service.get_run_by_id(result.run_id)
     assert lookup.run_id == result.run_id
 
@@ -43,8 +76,6 @@ def test_causal_service_missing_run():
         service.get_run_by_id("non-existent-run")
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail["code"] == "RUN_NOT_FOUND"
-from backend.app.schemas.optimization import OptimizationRequest
-from backend.app.services.optimization_service import OptimizationService
 
 
 def test_optimization_service_mock_run():

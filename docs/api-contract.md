@@ -173,18 +173,10 @@
 ## 5. Week 2 Interface Alignment & Real Dataset Schema
 
 ### 5.1 Dataset Schema Specifications (\conocausal_enriched_synthetic_dataset.csv\)
-- **Primary Key:** \customer_id\
-- **Treatment Variables:** \discount_offered\ (default percentage), \discount_amount\
-- **Target Outcome Variables:** \purchased\ (binary classification default), \evenue\, \
-et_profit\
-- **Key Confounders:** \ge\, \income_bracket\, \	enure_months\, \historical_spend\, \ecency_days\, \cart_abandonment_rate\, \mail_open_rate\, \previous_purchases_12m\
-
+- **Primary Key:** \customer_id- **Treatment Variables:** \discount_offered\ (default percentage), \discount_amount- **Target Outcome Variables:** \purchased\ (binary classification default), evenue\, et_profit- **Key Confounders:** \ge\, \income_bracket\, \	enure_months\, \historical_spend\, ecency_days\, \cart_abandonment_rate\, \mail_open_rate\, \previous_purchases_12m
 ### 5.2 Diagnostics Module Integration (Kanshika)
 Backend causal services will import and invoke:
-- \ackend.app.causal.dag.build_causal_dag()\
-- \ackend.app.causal.propensity.estimate_propensity_scores()\
-- \ackend.app.causal.propensity.propensity_diagnostics()\
-
+- \ackend.app.causal.dag.build_causal_dag()- \ackend.app.causal.propensity.estimate_propensity_scores()- \ackend.app.causal.propensity.propensity_diagnostics()
 ### 5.3 Teammate Action Items & Gaps
 1. **Ritik (DML Pipeline):** Need to modularize preprocessing and EconML training code from \ML/EconoCausal_project.ipynb\ into a callable service (e.g., \ackend/app/ml/dml_service.py\ or \ackend/app/services/causal_service.py\).
 2. **Khushi (Frontend):** Point UI API client to target \discount_offered\ and \purchased\ as default dropdown selections during analysis configuration.
