@@ -147,3 +147,40 @@ These are preliminary, unadjusted diagnostics on synthetic data. They do not est
 - Category-level proportion differences are descriptive diagnostics; they are not standardized mean differences and should not be judged using the numeric SMD threshold of 0.1.
 - These results are unadjusted and do not establish adequate overlap, causal validity, or a treatment effect.
 - Categorical and numeric balance should be interpreted alongside verified pre-treatment feature timing and the approved causal design.
+
+## 10. Initial Refutation Checks
+
+### Implemented checks
+
+The optional refutation module in `backend/app/causal/refutation.py`
+defines the following DoWhy checks:
+
+- `random_common_cause`: tests sensitivity to adding a random common cause.
+- `placebo_treatment_refuter`: tests a placebo-treatment scenario.
+- `data_subset_refuter`: examines sensitivity to using a subset of the data.
+
+### Execution status
+
+- DoWhy is an optional dependency and was not installed in the
+  environment during the initial implementation.
+- When DoWhy is unavailable, the checks are reported as `unsupported`;
+  they are not treated as executed.
+- When DoWhy is available, each check is attempted independently.
+- Successful execution is reported as `completed`, not `passed`.
+- Exceptions are recorded as `error`, including the relevant error message.
+- The overall result distinguishes successful execution from execution errors.
+
+### Interpretation and limitations
+
+These checks are diagnostic tools, not proof of causal validity.
+Their interpretation depends on the causal model, estimand, estimator,
+data-generating process, and configuration used.
+
+A completed check does not establish that an estimated effect is correct.
+A failed execution is not evidence that the causal hypothesis is false.
+The dataset is synthetic, treatment assignment is undocumented, and
+pre-treatment covariate timing still requires verification.
+
+No actual DoWhy refutation results are available until the dependency
+is installed in a compatible environment and the checks are executed
+against a valid identified estimand and estimate.
