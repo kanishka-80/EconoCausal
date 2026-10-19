@@ -84,7 +84,6 @@ def test_causal_service_rejects_missing_columns():
 
 
 def test_causal_service_rejects_insufficient_treatment_variation():
-    # Only 1 distinct treatment value across all rows
     csv_bytes = "customer_id,discount_offered,purchased,age\n1,10.0,1,25\n2,10.0,0,30\n".encode("utf-8")
     DataService.parse_and_validate_csv(csv_bytes, "test.csv")
     service = CausalService()
@@ -99,8 +98,14 @@ def test_causal_service_rejects_insufficient_treatment_variation():
     assert exc_info.value.detail["code"] == "INSUFFICIENT_VARIATION"
 
 
-def test_causal_service_run_and_lookup():
-    csv_bytes = "customer_id,discount_offered,purchased,age\n1,10.0,1,25\n2,20.0,0,30\n".encode("utf-8")
+def test_causal_service_run_and_structured_results():
+    csv_bytes = (
+        "customer_id,discount_offered,purchased,age\n"
+        "1,10.0,0,25\n"
+        "2,20.0,1,28\n"
+        "3,10.0,0,45\n"
+        "4,20.0,1,50\n"
+    ).encode("utf-8")
     DataService.parse_and_validate_csv(csv_bytes, "test.csv")
     service = CausalService()
     req = CausalAnalysisRequest(
@@ -112,9 +117,22 @@ def test_causal_service_run_and_lookup():
     assert result.is_mock is True
     assert result.status == "COMPLETED"
     assert result.ate_summary.average_treatment_effect is not None
+    assert result.ate_summary.unit == "percentage_points"
+    assert result.ate_summary.confidence_interval_lower is not None
+    assert result.ate_summary.confidence_interval_upper is not None
 
+    # Check segment effects and metadata
+    assert len(result.segment_effects) >= 1
+    assert result.segment_effects[0].segment_feature == "age"
+    assert result.metadata.sample_size == 4
+    assert result.metadata.treatment_column == "discount_offered"
+    assert result.diagnostics.refutation_status == "PENDING_INTEGRATION"
+    assert len(result.diagnostics.warnings) > 0
+
+    # Test run lookup
     lookup = service.get_run_by_id(result.run_id)
     assert lookup.run_id == result.run_id
+    assert len(lookup.segment_effects) == len(result.segment_effects)
 
 
 def test_causal_service_missing_run():

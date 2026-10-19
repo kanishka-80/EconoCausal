@@ -1,11 +1,16 @@
+import time
 import uuid
 from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 from fastapi import HTTPException, status
+
 from backend.app.schemas.causal import (
+    AnalysisMetadata,
     CausalAnalysisData,
     CausalAnalysisRequest,
+    DiagnosticsSummary,
+    SegmentEffect,
     TreatmentEffectSummary,
 )
 from backend.app.services.data_service import DataService
@@ -61,7 +66,57 @@ class CausalService:
                 },
             )
 
+    def _calculate_segment_effects(
+        self, df: pd.DataFrame, treatment: str, outcome: str, confounders: List[str], baseline_ate: float
+    ) -> List[SegmentEffect]:
+        """Calculates segment-level Conditional Average Treatment Effects (CATE)."""
+        segment_effects: List[SegmentEffect] = []
+        if not confounders:
+            return segment_effects
+
+        # Select primary confounder to segment on
+        split_feature = confounders[0]
+        feature_series = df[split_feature].dropna()
+
+        if pd.api.types.is_numeric_dtype(feature_series) and feature_series.nunique() > 2:
+            median_val = float(feature_series.median())
+            segments = {
+                f"{split_feature} <= {median_val:.1f}": df[df[split_feature] <= median_val],
+                f"{split_feature} > {median_val:.1f}": df[df[split_feature] > median_val],
+            }
+        else:
+            top_cats = feature_series.value_counts().head(3).index.tolist()
+            segments = {f"{split_feature}={cat}": df[df[split_feature] == cat] for cat in top_cats}
+
+        for seg_name, seg_df in segments.items():
+            n_obs = len(seg_df)
+            if n_obs < 2:
+                continue
+
+            t_vals = sorted(seg_df[treatment].dropna().unique())
+            if len(t_vals) >= 2:
+                y0 = seg_df[seg_df[treatment] == t_vals[0]][outcome].mean()
+                y1 = seg_df[seg_df[treatment] == t_vals[-1]][outcome].mean()
+                seg_ate = float(y1 - y0) if (pd.notna(y1) and pd.notna(y0)) else baseline_ate
+            else:
+                seg_ate = baseline_ate
+
+            if not np.isfinite(seg_ate):
+                seg_ate = baseline_ate
+
+            segment_effects.append(
+                SegmentEffect(
+                    segment_name=seg_name,
+                    segment_feature=split_feature,
+                    sample_size=int(n_obs),
+                    estimated_effect=round(float(seg_ate), 4),
+                )
+            )
+
+        return segment_effects
+
     def run_analysis(self, payload: CausalAnalysisRequest) -> CausalAnalysisData:
+        start_time = time.perf_counter()
         df = DataService.get_current_dataframe()
         if df is None or df.empty:
             raise HTTPException(
@@ -78,8 +133,7 @@ class CausalService:
 
         run_id = f"run-{uuid.uuid4().hex[:8]}"
 
-        # Baseline calculation / test double until Ritik's DML pipeline integration on Day 11
-        # Calculate naive difference-in-means or realistic bounded uplift for deterministic baseline
+        # Baseline ATE calculation (Deterministic double until Ritik's DML pipeline freeze on Day 11)
         t_vals = sorted(df[payload.treatment_column].dropna().unique())
         baseline_t = t_vals[0]
         active_t = t_vals[-1]
@@ -88,14 +142,42 @@ class CausalService:
         y_active = df[df[payload.treatment_column] == active_t][payload.outcome_column].mean()
 
         naive_ate = float(y_active - y_base) if (pd.notna(y_active) and pd.notna(y_base)) else 0.05
-        # Guard against zero or NaN
         if not np.isfinite(naive_ate) or naive_ate == 0.0:
             naive_ate = 0.082
 
+        margin = 0.035
         ate_summary = TreatmentEffectSummary(
             average_treatment_effect=round(naive_ate, 4),
-            confidence_interval_lower=round(naive_ate - 0.03, 4),
-            confidence_interval_upper=round(naive_ate + 0.03, 4),
+            confidence_interval_lower=round(naive_ate - margin, 4),
+            confidence_interval_upper=round(naive_ate + margin, 4),
+            unit="percentage_points",
+        )
+
+        segment_effects = self._calculate_segment_effects(
+            df=df,
+            treatment=payload.treatment_column,
+            outcome=payload.outcome_column,
+            confounders=payload.confounders,
+            baseline_ate=round(naive_ate, 4),
+        )
+
+        elapsed = time.perf_counter() - start_time
+
+        metadata = AnalysisMetadata(
+            sample_size=int(len(df)),
+            treatment_column=payload.treatment_column,
+            outcome_column=payload.outcome_column,
+            confounders=payload.confounders,
+            execution_time_seconds=round(elapsed, 4),
+        )
+
+        diagnostics = DiagnosticsSummary(
+            refutation_status="PENDING_INTEGRATION",
+            open_decisions="Discrete levels vs continuous treatment pending team freeze",
+            warnings=[
+                "Observational study design requires unconfoundedness assumption.",
+                "EconML DML pipeline is executing in baseline double mode until notebook modularization.",
+            ],
         )
 
         record = CausalAnalysisData(
@@ -104,12 +186,9 @@ class CausalService:
             estimator_used="LinearDML (Baseline Orchestrator)",
             is_mock=True,
             ate_summary=ate_summary,
-            diagnostics={
-                "status": "READY_FOR_INTEGRATION",
-                "treatment": payload.treatment_column,
-                "outcome": payload.outcome_column,
-                "sample_size": int(len(df)),
-            },
+            segment_effects=segment_effects,
+            metadata=metadata,
+            diagnostics=diagnostics,
         )
         self.runs[run_id] = record
         return record
