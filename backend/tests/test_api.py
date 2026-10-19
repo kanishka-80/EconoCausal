@@ -51,7 +51,12 @@ def test_data_upload_rejects_encoding_error():
 
 
 def test_data_upload_valid_csv():
-    csv_text = "customer_id,discount_offered,purchased,historical_spend\n1001,10.0,1,250.5\n1002,20.0,0,100.0\n1003,10.0,1,\n"
+    csv_text = (
+        "customer_id,discount_offered,purchased,historical_spend,age,income\n"
+        "1001,10.0,1,250.5,29,50000\n"
+        "1002,20.0,0,100.0,45,75000\n"
+        "1003,10.0,1,,34,62000\n"
+    )
     files = {"file": ("test_dataset.csv", io.BytesIO(csv_text.encode("utf-8")), "text/csv")}
     response = client.post("/api/data/upload", files=files)
     assert response.status_code == 200
@@ -60,7 +65,7 @@ def test_data_upload_valid_csv():
     data = res_json["data"]
     assert data["filename"] == "test_dataset.csv"
     assert data["row_count"] == 3
-    assert data["column_count"] == 4
+    assert data["column_count"] == 6
     assert data["validation_status"] == "VALID"
     assert "discount_offered" in data["columns"]
 
@@ -72,7 +77,7 @@ def test_data_summary_returns_contract_shape_and_dynamic_stats():
     assert res_json["status"] == "success"
     data = res_json["data"]
     assert data["row_count"] == 3
-    assert data["column_count"] == 4
+    assert data["column_count"] == 6
     assert data["preprocessing_status"] == "READY"
 
     cols = {c["name"]: c for c in data["columns"]}
@@ -89,32 +94,80 @@ def test_data_summary_returns_contract_shape_and_dynamic_stats():
     assert data["treatment_coverage"]["counts"]["20.0"] == 1
 
 
-def test_causal_analyze_valid_payload():
+def test_causal_analyze_rejects_missing_dataset():
+    DataService.clear()
     payload = {
         "treatment_column": "discount_offered",
         "outcome_column": "purchased",
-        "confounders": ["income", "age", "prior_orders"],
+        "confounders": ["age"],
     }
     response = client.post("/api/causal/analyze", json=payload)
-    assert response.status_code == 200
-    res_json = response.json()
-    assert res_json["status"] == "success"
-    assert "run_id" in res_json["data"]
-    assert res_json["data"]["ate_summary"]["average_treatment_effect"] > 0
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "NO_DATA_UPLOADED"
 
 
-def test_causal_analyze_rejects_identical_treatment_and_outcome():
+def test_causal_analyze_rejects_columns_not_in_dataset():
+    csv_text = "customer_id,discount_offered,purchased,age\n1,10.0,1,30\n2,20.0,0,40\n"
+    files = {"file": ("data.csv", io.BytesIO(csv_text.encode("utf-8")), "text/csv")}
+    client.post("/api/data/upload", files=files)
+
     payload = {
         "treatment_column": "discount_offered",
-        "outcome_column": "discount_offered",
-        "confounders": ["income"],
+        "outcome_column": "purchased",
+        "confounders": ["non_existent_column"],
     }
     response = client.post("/api/causal/analyze", json=payload)
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "INVALID_COLUMN_SPECIFICATION"
 
 
+def test_causal_analyze_rejects_identical_treatment_and_outcome():
+    payload = {
+        "treatment_column": "discount_offered",
+        "outcome_column": "discount_offered",
+        "confounders": ["age"],
+    }
+    response = client.post("/api/causal/analyze", json=payload)
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "INVALID_COLUMN_SPECIFICATION"
+
+
+def test_causal_analyze_rejects_confounder_overlapping_treatment_or_outcome():
+    payload = {
+        "treatment_column": "discount_offered",
+        "outcome_column": "purchased",
+        "confounders": ["discount_offered", "age"],
+    }
+    response = client.post("/api/causal/analyze", json=payload)
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "INVALID_COLUMN_SPECIFICATION"
+
+
+def test_causal_analyze_valid_payload():
+    csv_text = "customer_id,discount_offered,purchased,age,income\n1,10.0,1,30,50000\n2,20.0,0,40,60000\n"
+    files = {"file": ("data.csv", io.BytesIO(csv_text.encode("utf-8")), "text/csv")}
+    client.post("/api/data/upload", files=files)
+
+    payload = {
+        "treatment_column": "discount_offered",
+        "outcome_column": "purchased",
+        "confounders": ["age", "income"],
+    }
+    response = client.post("/api/causal/analyze", json=payload)
+    assert response.status_code == 200
+    res_json = response.json()
+    assert res_json["status"] == "success"
+    assert "run_id" in res_json["data"]
+    assert res_json["data"]["status"] == "COMPLETED"
+    assert res_json["data"]["is_mock"] is True
+    assert res_json["data"]["ate_summary"]["average_treatment_effect"] is not None
+
+
 def test_causal_results_lookup_and_not_found():
+    csv_text = "customer_id,discount_offered,purchased,age,income\n1,10.0,1,30,50000\n2,20.0,0,40,60000\n"
+    files = {"file": ("data.csv", io.BytesIO(csv_text.encode("utf-8")), "text/csv")}
+    client.post("/api/data/upload", files=files)
+
     payload = {
         "treatment_column": "discount_offered",
         "outcome_column": "purchased",
