@@ -143,8 +143,14 @@ def test_causal_analyze_rejects_confounder_overlapping_treatment_or_outcome():
     assert response.json()["detail"]["code"] == "INVALID_COLUMN_SPECIFICATION"
 
 
-def test_causal_analyze_valid_payload():
-    csv_text = "customer_id,discount_offered,purchased,age,income\n1,10.0,1,30,50000\n2,20.0,0,40,60000\n"
+def test_causal_analyze_valid_payload_and_structured_results():
+    csv_text = (
+        "customer_id,discount_offered,purchased,age,income\n"
+        "1,10.0,0,25,50000\n"
+        "2,20.0,1,32,60000\n"
+        "3,10.0,0,45,70000\n"
+        "4,20.0,1,55,80000\n"
+    )
     files = {"file": ("data.csv", io.BytesIO(csv_text.encode("utf-8")), "text/csv")}
     client.post("/api/data/upload", files=files)
 
@@ -157,10 +163,28 @@ def test_causal_analyze_valid_payload():
     assert response.status_code == 200
     res_json = response.json()
     assert res_json["status"] == "success"
-    assert "run_id" in res_json["data"]
-    assert res_json["data"]["status"] == "COMPLETED"
-    assert res_json["data"]["is_mock"] is True
-    assert res_json["data"]["ate_summary"]["average_treatment_effect"] is not None
+    data = res_json["data"]
+
+    # Verify structured treatment effects and metadata
+    assert "run_id" in data
+    assert data["status"] == "COMPLETED"
+    assert data["is_mock"] is True
+    assert data["ate_summary"]["average_treatment_effect"] is not None
+    assert data["ate_summary"]["unit"] == "percentage_points"
+    assert "confidence_interval_lower" in data["ate_summary"]
+    assert "confidence_interval_upper" in data["ate_summary"]
+
+    # Verify CATE segment effects
+    assert isinstance(data["segment_effects"], list)
+    assert len(data["segment_effects"]) >= 1
+    assert "estimated_effect" in data["segment_effects"][0]
+    assert "sample_size" in data["segment_effects"][0]
+
+    # Verify metadata and diagnostics
+    assert data["metadata"]["sample_size"] == 4
+    assert data["metadata"]["treatment_column"] == "discount_offered"
+    assert data["diagnostics"]["refutation_status"] == "PENDING_INTEGRATION"
+    assert len(data["diagnostics"]["warnings"]) > 0
 
 
 def test_causal_results_lookup_and_not_found():
@@ -179,8 +203,12 @@ def test_causal_results_lookup_and_not_found():
 
     fetch_res = client.get(f"/api/causal/results/{run_id}")
     assert fetch_res.status_code == 200
-    assert fetch_res.json()["data"]["run_id"] == run_id
-    assert fetch_res.json()["data"]["is_mock"] is True
+    fetch_data = fetch_res.json()["data"]
+    assert fetch_data["run_id"] == run_id
+    assert fetch_data["is_mock"] is True
+    assert "segment_effects" in fetch_data
+    assert "metadata" in fetch_data
+    assert "diagnostics" in fetch_data
 
     missing_res = client.get("/api/causal/results/run-doesnotexist")
     assert missing_res.status_code == 404
