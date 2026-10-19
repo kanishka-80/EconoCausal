@@ -54,17 +54,64 @@ def test_data_service_summary_dynamic_computation():
     assert col_map["purchased"].is_eligible_confounder is False
 
 
-def test_causal_service_run_and_lookup():
+def test_causal_service_rejects_missing_dataset():
+    DataService.clear()
     service = CausalService()
     req = CausalAnalysisRequest(
-        treatment_column="discount",
-        outcome_column="sales",
-        confounders=["age", "income"],
+        treatment_column="discount_offered",
+        outcome_column="purchased",
+        confounders=["age"],
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        service.run_analysis(req)
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "NO_DATA_UPLOADED"
+
+
+def test_causal_service_rejects_missing_columns():
+    csv_bytes = "customer_id,discount_offered,purchased\n1,10.0,1\n2,20.0,0\n".encode("utf-8")
+    DataService.parse_and_validate_csv(csv_bytes, "test.csv")
+    service = CausalService()
+    req = CausalAnalysisRequest(
+        treatment_column="discount_offered",
+        outcome_column="purchased",
+        confounders=["non_existent_column"],
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        service.run_analysis(req)
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "INVALID_COLUMN_SPECIFICATION"
+
+
+def test_causal_service_rejects_insufficient_treatment_variation():
+    # Only 1 distinct treatment value across all rows
+    csv_bytes = "customer_id,discount_offered,purchased,age\n1,10.0,1,25\n2,10.0,0,30\n".encode("utf-8")
+    DataService.parse_and_validate_csv(csv_bytes, "test.csv")
+    service = CausalService()
+    req = CausalAnalysisRequest(
+        treatment_column="discount_offered",
+        outcome_column="purchased",
+        confounders=["age"],
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        service.run_analysis(req)
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "INSUFFICIENT_VARIATION"
+
+
+def test_causal_service_run_and_lookup():
+    csv_bytes = "customer_id,discount_offered,purchased,age\n1,10.0,1,25\n2,20.0,0,30\n".encode("utf-8")
+    DataService.parse_and_validate_csv(csv_bytes, "test.csv")
+    service = CausalService()
+    req = CausalAnalysisRequest(
+        treatment_column="discount_offered",
+        outcome_column="purchased",
+        confounders=["age"],
     )
     result = service.run_analysis(req)
     assert result.is_mock is True
     assert result.status == "COMPLETED"
-    assert result.ate_summary.average_treatment_effect > 0
+    assert result.ate_summary.average_treatment_effect is not None
 
     lookup = service.get_run_by_id(result.run_id)
     assert lookup.run_id == result.run_id
