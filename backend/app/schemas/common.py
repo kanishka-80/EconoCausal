@@ -1,4 +1,4 @@
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Any, Generic, List, Optional, TypeVar, Union
 from pydantic import BaseModel, Field
 
 T = TypeVar("T")
@@ -13,7 +13,10 @@ class ErrorDetail(BaseModel):
 class ErrorPayload(BaseModel):
     code: str = Field(description="Machine-readable error code")
     message: str = Field(description="Human-readable explanation")
-    details: List[ErrorDetail] = Field(default_factory=list, description="Specific field-level or validation details")
+    details: List[Union[ErrorDetail, str, Any]] = Field(
+        default_factory=list,
+        description="Specific field-level or validation details",
+    )
 
 
 class StandardResponse(BaseModel, Generic[T]):

@@ -1,3 +1,4 @@
+import logging
 import time
 import uuid
 from typing import Dict, List, Optional
@@ -9,11 +10,14 @@ from backend.app.schemas.causal import (
     AnalysisMetadata,
     CausalAnalysisData,
     CausalAnalysisRequest,
+    DiagnosticCheckResult,
     DiagnosticsSummary,
     SegmentEffect,
     TreatmentEffectSummary,
 )
 from backend.app.services.data_service import DataService
+
+logger = logging.getLogger("econocausal.services.causal")
 
 
 class CausalService:
@@ -117,8 +121,14 @@ class CausalService:
 
     def run_analysis(self, payload: CausalAnalysisRequest) -> CausalAnalysisData:
         start_time = time.perf_counter()
+        logger.info(
+            f"Starting causal analysis: treatment={payload.treatment_column}, "
+            f"outcome={payload.outcome_column}, confounders={payload.confounders}"
+        )
+
         df = DataService.get_current_dataframe()
         if df is None or df.empty:
+            logger.warning("Causal analysis requested without uploaded dataset.")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
@@ -128,12 +138,10 @@ class CausalService:
                 },
             )
 
-        # Enforce validation rules
         self.validate_analysis_request(payload, df)
-
         run_id = f"run-{uuid.uuid4().hex[:8]}"
 
-        # Baseline ATE calculation (Deterministic double until Ritik's DML pipeline freeze on Day 11)
+        # Baseline ATE calculation (Deterministic double until Ritik's DML pipeline freeze)
         t_vals = sorted(df[payload.treatment_column].dropna().unique())
         baseline_t = t_vals[0]
         active_t = t_vals[-1]
@@ -173,6 +181,20 @@ class CausalService:
 
         diagnostics = DiagnosticsSummary(
             refutation_status="PENDING_INTEGRATION",
+            checks=[
+                DiagnosticCheckResult(
+                    check_name="random_common_cause",
+                    status="PENDING_INTEGRATION",
+                    p_value=None,
+                    details="DoWhy random common cause refutation pending evaluation module linkage.",
+                ),
+                DiagnosticCheckResult(
+                    check_name="placebo_treatment_refuter",
+                    status="PENDING_INTEGRATION",
+                    p_value=None,
+                    details="Placebo treatment refuter pending evaluation module linkage.",
+                ),
+            ],
             open_decisions="Discrete levels vs continuous treatment pending team freeze",
             warnings=[
                 "Observational study design requires unconfoundedness assumption.",
@@ -191,10 +213,12 @@ class CausalService:
             diagnostics=diagnostics,
         )
         self.runs[run_id] = record
+        logger.info(f"Causal analysis run {run_id} completed successfully in {elapsed:.4f}s.")
         return record
 
     def get_run_by_id(self, run_id: str) -> CausalAnalysisData:
         if run_id not in self.runs:
+            logger.warning(f"Causal analysis run {run_id} not found.")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
