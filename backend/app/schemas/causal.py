@@ -31,8 +31,16 @@ class AnalysisMetadata(BaseModel):
     execution_time_seconds: float = Field(description="Time elapsed during analysis in seconds")
 
 
+class DiagnosticCheckResult(BaseModel):
+    check_name: str = Field(description="Identifier of the refutation or diagnostic check")
+    status: str = Field(default="PENDING_INTEGRATION", description="Status: PASSED, FAILED, PENDING_INTEGRATION, SKIPPED")
+    p_value: Optional[float] = Field(default=None, description="Significance p-value if applicable and computed")
+    details: Optional[str] = Field(default=None, description="Description or caveat regarding check execution")
+
+
 class DiagnosticsSummary(BaseModel):
     refutation_status: str = Field(default="PENDING_INTEGRATION", description="Status of DoWhy refutation checks")
+    checks: List[DiagnosticCheckResult] = Field(default_factory=list, description="Granular refutation check results")
     open_decisions: Optional[str] = Field(default=None, description="Pending team modeling decisions")
     warnings: List[str] = Field(default_factory=list, description="Statistical or model caveats and warnings")
 

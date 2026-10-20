@@ -1,4 +1,5 @@
 import io
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from backend.app.main import app
 from backend.app.services.data_service import DataService
@@ -19,12 +20,16 @@ def test_data_summary_before_upload_returns_404():
     response = client.get("/api/data/summary")
     assert response.status_code == 404
     data = response.json()
-    assert data["detail"]["code"] == "NO_DATA_UPLOADED"
+    assert data["status"] == "error"
+    assert data["error"]["code"] == "NO_DATA_UPLOADED"
 
 
 def test_data_upload_missing_file_returns_422():
     response = client.post("/api/data/upload")
     assert response.status_code == 422
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error"]["code"] == "VALIDATION_ERROR"
 
 
 def test_data_upload_rejects_non_csv():
@@ -32,14 +37,18 @@ def test_data_upload_rejects_non_csv():
     files = {"file": ("sample.txt", io.BytesIO(txt_content), "text/plain")}
     response = client.post("/api/data/upload", files=files)
     assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "INVALID_FILE_FORMAT"
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error"]["code"] == "INVALID_FILE_FORMAT"
 
 
 def test_data_upload_rejects_empty_csv():
     files = {"file": ("empty.csv", io.BytesIO(b""), "text/csv")}
     response = client.post("/api/data/upload", files=files)
     assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "EMPTY_DATASET"
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error"]["code"] == "EMPTY_DATASET"
 
 
 def test_data_upload_rejects_encoding_error():
@@ -47,7 +56,9 @@ def test_data_upload_rejects_encoding_error():
     files = {"file": ("corrupt.csv", io.BytesIO(invalid_bytes), "text/csv")}
     response = client.post("/api/data/upload", files=files)
     assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "ENCODING_ERROR"
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error"]["code"] == "ENCODING_ERROR"
 
 
 def test_data_upload_valid_csv():
@@ -94,6 +105,22 @@ def test_data_summary_returns_contract_shape_and_dynamic_stats():
     assert data["treatment_coverage"]["counts"]["20.0"] == 1
 
 
+def test_data_reset_clears_memory_resource():
+    # Ensure dataset is present
+    summary_before = client.get("/api/data/summary")
+    assert summary_before.status_code == 200
+
+    # Call reset
+    reset_res = client.post("/api/data/reset")
+    assert reset_res.status_code == 200
+    assert reset_res.json()["status"] == "success"
+
+    # Confirm data is cleared
+    summary_after = client.get("/api/data/summary")
+    assert summary_after.status_code == 404
+    assert summary_after.json()["error"]["code"] == "NO_DATA_UPLOADED"
+
+
 def test_causal_analyze_rejects_missing_dataset():
     DataService.clear()
     payload = {
@@ -103,7 +130,9 @@ def test_causal_analyze_rejects_missing_dataset():
     }
     response = client.post("/api/causal/analyze", json=payload)
     assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "NO_DATA_UPLOADED"
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error"]["code"] == "NO_DATA_UPLOADED"
 
 
 def test_causal_analyze_rejects_columns_not_in_dataset():
@@ -118,7 +147,9 @@ def test_causal_analyze_rejects_columns_not_in_dataset():
     }
     response = client.post("/api/causal/analyze", json=payload)
     assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "INVALID_COLUMN_SPECIFICATION"
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error"]["code"] == "INVALID_COLUMN_SPECIFICATION"
 
 
 def test_causal_analyze_rejects_identical_treatment_and_outcome():
@@ -129,7 +160,9 @@ def test_causal_analyze_rejects_identical_treatment_and_outcome():
     }
     response = client.post("/api/causal/analyze", json=payload)
     assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "INVALID_COLUMN_SPECIFICATION"
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error"]["code"] == "INVALID_COLUMN_SPECIFICATION"
 
 
 def test_causal_analyze_rejects_confounder_overlapping_treatment_or_outcome():
@@ -140,7 +173,9 @@ def test_causal_analyze_rejects_confounder_overlapping_treatment_or_outcome():
     }
     response = client.post("/api/causal/analyze", json=payload)
     assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "INVALID_COLUMN_SPECIFICATION"
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error"]["code"] == "INVALID_COLUMN_SPECIFICATION"
 
 
 def test_causal_analyze_valid_payload_and_structured_results():
@@ -185,6 +220,9 @@ def test_causal_analyze_valid_payload_and_structured_results():
     assert data["metadata"]["treatment_column"] == "discount_offered"
     assert data["diagnostics"]["refutation_status"] == "PENDING_INTEGRATION"
     assert len(data["diagnostics"]["warnings"]) > 0
+    assert len(data["diagnostics"]["checks"]) == 2
+    assert data["diagnostics"]["checks"][0]["check_name"] == "random_common_cause"
+    assert data["diagnostics"]["checks"][0]["status"] == "PENDING_INTEGRATION"
 
 
 def test_causal_results_lookup_and_not_found():
@@ -212,7 +250,25 @@ def test_causal_results_lookup_and_not_found():
 
     missing_res = client.get("/api/causal/results/run-doesnotexist")
     assert missing_res.status_code == 404
-    assert missing_res.json()["detail"]["code"] == "RUN_NOT_FOUND"
+    missing_data = missing_res.json()
+    assert missing_data["status"] == "error"
+    assert missing_data["error"]["code"] == "RUN_NOT_FOUND"
+
+
+def test_unexpected_server_error_shields_stack_traces():
+    # Pass raise_server_exceptions=False so TestClient captures the 500 JSONResponse
+    unhandled_client = TestClient(app, raise_server_exceptions=False)
+    with patch(
+        "backend.app.services.data_service.DataService.get_dataset_summary",
+        side_effect=RuntimeError("Secret database path failure"),
+    ):
+        response = unhandled_client.get("/api/data/summary")
+        assert response.status_code == 500
+        data = response.json()
+        assert data["status"] == "error"
+        assert data["error"]["code"] == "INTERNAL_SERVER_ERROR"
+        # Shielded: internal runtime error message must NOT leak into client response
+        assert "Secret database path failure" not in str(data)
 
 
 def test_optimization_run_valid_payload():
@@ -237,3 +293,6 @@ def test_optimization_run_rejects_non_positive_budget():
     }
     response = client.post("/api/optimization/run", json=payload)
     assert response.status_code == 422
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error"]["code"] == "VALIDATION_ERROR"
