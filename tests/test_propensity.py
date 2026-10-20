@@ -6,6 +6,7 @@ import pandas as pd
 from backend.app.causal.propensity import (
     estimate_propensity_scores,
     propensity_diagnostics,
+    covariate_balance_diagnostics,
 )
 
 
@@ -68,6 +69,35 @@ class TestPropensity(unittest.TestCase):
                 covariates=["age", "unknown_feature"],
             )
 
+    def test_invalid_probability_values_are_rejected(self):
+        invalid_scores = pd.DataFrame({
+                "propensity_0": [1.2, 0.4],
+                "propensity_5": [-0.2, 0.6],
+        })
+
+        with self.assertRaises(ValueError):
+                propensity_diagnostics(invalid_scores)
+
+    def test_probabilities_not_summing_to_one_are_reported(self):
+        scores = pd.DataFrame({
+            "propensity_0": [0.2, 0.3],
+            "propensity_5": [0.2, 0.3],
+        })
+
+        report = propensity_diagnostics(scores)
+
+        self.assertFalse(report["probabilities_sum_to_one"])
+
+    def test_numeric_covariate_balance_returns_pairwise_results(self):
+        report = covariate_balance_diagnostics(
+            self.data,
+            covariates=["age"],
+        )
+
+        self.assertEqual(len(report), 6)
+        self.assertIn("absolute_smd", report.columns)
+        self.assertIn("imbalanced_at_0_1", report.columns)
 
 if __name__ == "__main__":
     unittest.main()
+ 
