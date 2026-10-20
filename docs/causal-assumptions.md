@@ -99,3 +99,35 @@ disconnected acyclic graph.
   do not establish covariate overlap or causal validity.
 - The graph must be reviewed against the approved causal design
   before its edges are treated as an agreed causal model.
+
+
+## 9. Propensity Score and Covariate Balance Diagnostics
+
+### Dataset and Treatment Groups
+- Dataset: `econocausal_enriched_synthetic_dataset.csv`
+- Observations: 20,000
+- Treatment: `discount_offered`
+- Outcome: `purchased`
+- Treatment levels: 0, 5, 10, and 20
+- Observations per treatment group: 5,000
+
+### Propensity Score Diagnostics
+- Multinomial logistic regression estimated one propensity score per treatment level.
+- Probability rows summed to approximately 1.
+- Minimum estimated probability across all treatment-probability columns: approximately 0.000578.
+- Maximum estimated probability across all treatment-probability columns: approximately 0.934422.
+- Probability values below 0.01 across all treatment columns: 308.
+- For the observed treatment, 3 observations in the discount-0 group had estimated probabilities below 0.01; no such observations were found in the other groups.
+
+### Raw Numeric Covariate Balance
+- Pairwise comparisons: 126.
+- Comparisons with absolute SMD >= 0.1: 24.
+- Comparisons with absolute SMD < 0.1: 102.
+- Missing SMD values: 0.
+- Largest observed imbalance: `recency_days`, discount 0 versus discount 20, absolute SMD approximately 0.948468.
+
+### Output Artifact
+The diagnostic report was generated as `covariate_balance_report.csv`. It contains treatment-pair comparisons, covariate names, absolute standardized mean differences, and imbalance flags.
+
+### Limitations and Follow-up
+These are preliminary, unadjusted diagnostics on synthetic data. They do not establish a causal effect or demonstrate adequate overlap. Covariate timing, categorical balance, treatment-assignment assumptions, and balance after any justified adjustment remain to be reviewed. Do not automatically treat all candidate covariates as valid pre-treatment confounders.
