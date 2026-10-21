@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Activity, BarChart3, Bell, CheckCircle2, ChevronRight,
   CircleHelp, CloudUpload, Database, FileSpreadsheet, FileText,
@@ -87,6 +87,28 @@ function App() {
   const [error, setError] = useState('')
   const [dragging, setDragging] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  const [apiStatus, setApiStatus] = useState('Checking')
+
+  useEffect(() => {
+    let active = true
+
+    async function checkApi() {
+      try {
+        const response = await fetch('/api/health')
+        if (!response.ok) throw new Error('API unavailable')
+        if (active) setApiStatus('Connected')
+      } catch {
+        if (active) setApiStatus('Offline')
+      }
+    }
+
+    checkApi()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   function parseCSVLine(line) {
     const values = []
@@ -283,9 +305,9 @@ function App() {
           </div>
 
           <div className="topbar-right">
-            <div className="system-status">
-              <span className="online-dot" />
-              Workspace
+            <div className="system-status" title="Backend API connection status">
+              <span className={`online-dot ${apiStatus === 'Connected' ? 'api-connected' : apiStatus === 'Checking' ? 'api-checking' : 'api-offline'}`} />
+              API: {apiStatus}
             </div>
 
             <button className="icon-button" aria-label="Help" title="Help">
