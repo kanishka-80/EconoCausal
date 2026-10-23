@@ -1,3 +1,4 @@
+import { checkApiHealth } from './services/api'
 
 import { useEffect, useState } from 'react'
 import {
@@ -95,8 +96,7 @@ function App() {
 
     async function checkApi() {
       try {
-        const response = await fetch('/api/health')
-        if (!response.ok) throw new Error('API unavailable')
+        await checkApiHealth()
         if (active) setApiStatus('Connected')
       } catch {
         if (active) setApiStatus('Offline')
