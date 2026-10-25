@@ -168,3 +168,71 @@ def test_run_refutation_checks_continues_after_individual_error(monkeypatch):
     assert "simulated refutation failure" in (
         report["results"]["placebo_treatment_refuter"]["error"]
     )
+
+def test_run_refutation_checks_reports_error_when_all_checks_fail(monkeypatch):
+    monkeypatch.setattr(
+        refutation_module,
+        "_dowhy_available",
+        lambda: True,
+    )
+
+    class FailingCausalModel:
+        def refute_estimate(
+            self,
+            identified_estimand,
+            estimate,
+            method_name,
+        ):
+            raise RuntimeError(f"{method_name} failed")
+
+    report = run_refutation_checks(
+        causal_model=FailingCausalModel(),
+        identified_estimand="mock_estimand",
+        estimate="mock_estimate",
+    )
+
+    assert report["status"] == "error"
+    assert report["dependency_available"] is True
+    assert report["checks_executed"] == 0
+    assert report["causal_claim_proven"] is False
+
+    for method in REFUTATION_METHODS:
+        assert report["results"][method]["status"] == "error"
+        assert method in report["results"][method]["error"]
+
+def test_run_refutation_checks_handles_result_string_conversion_error(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        refutation_module,
+        "_dowhy_available",
+        lambda: True,
+    )
+
+    class UnprintableResult:
+        def __str__(self):
+            raise RuntimeError("string conversion failed")
+
+    class FakeCausalModel:
+        def refute_estimate(
+            self,
+            identified_estimand,
+            estimate,
+            method_name,
+        ):
+            return UnprintableResult()
+
+    report = run_refutation_checks(
+        causal_model=FakeCausalModel(),
+        identified_estimand="mock_estimand",
+        estimate="mock_estimate",
+    )
+
+    assert report["status"] == "completed"
+    assert report["checks_executed"] == len(REFUTATION_METHODS)
+
+    for method in REFUTATION_METHODS:
+        result = report["results"][method]
+        assert result["status"] == "completed"
+        assert "string formatting failed" in result["result"]["summary"]
+        assert result["causal_claim_proven"] is False
