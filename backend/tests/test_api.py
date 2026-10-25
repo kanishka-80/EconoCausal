@@ -82,6 +82,17 @@ def test_data_upload_valid_csv():
 
 
 def test_data_summary_returns_contract_shape_and_dynamic_stats():
+    # Seed data explicitly for test isolation
+    csv_text = (
+        "customer_id,discount_offered,purchased,historical_spend,age,income\n"
+        "1001,10.0,1,250.5,29,50000\n"
+        "1002,20.0,0,100.0,45,75000\n"
+        "1003,10.0,1,,34,62000\n"
+    )
+    files = {"file": ("test_dataset.csv", io.BytesIO(csv_text.encode("utf-8")), "text/csv")}
+    upload_res = client.post("/api/data/upload", files=files)
+    assert upload_res.status_code == 200
+
     response = client.get("/api/data/summary")
     assert response.status_code == 200
     res_json = response.json()
@@ -106,6 +117,16 @@ def test_data_summary_returns_contract_shape_and_dynamic_stats():
 
 
 def test_data_reset_clears_memory_resource():
+    # Seed an isolated CSV to guarantee test independence
+    csv_text = (
+        "customer_id,discount_offered,purchased,historical_spend,age,income\n"
+        "1001,10.0,1,250.5,29,50000\n"
+        "1002,20.0,0,100.0,45,75000\n"
+    )
+    files = {"file": ("reset_seed.csv", io.BytesIO(csv_text.encode("utf-8")), "text/csv")}
+    upload_res = client.post("/api/data/upload", files=files)
+    assert upload_res.status_code == 200
+
     # Ensure dataset is present
     summary_before = client.get("/api/data/summary")
     assert summary_before.status_code == 200
