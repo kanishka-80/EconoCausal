@@ -173,3 +173,76 @@ def test_uplift_gain_matches_expected_calculation():
 
     expected_gain = [1.0, 1.0, 1.0, 0.0]
     assert result["uplift_gain"].tolist() == expected_gain
+
+def test_customer_id_is_preserved_in_uplift_output():
+    data = pd.DataFrame({
+        "customer_id": [101, 102, 103, 104],
+        "discount_offered": [10, 0, 10, 0],
+        "purchased": [1, 0, 0, 1],
+    })
+    scores = [0.9, 0.8, 0.7, 0.6]
+
+    result = evaluate_uplift(
+        data,
+        scores,
+        treatment_level=10,
+        control_level=0,
+        id_col="customer_id",
+    )
+
+    assert "customer_id" in result.columns
+    assert result["customer_id"].tolist() == [101, 102, 103, 104]
+
+
+def test_customer_id_stays_aligned_after_ranking():
+    data = pd.DataFrame({
+        "customer_id": [101, 102, 103, 104],
+        "discount_offered": [10, 0, 10, 0],
+        "purchased": [1, 0, 0, 1],
+    })
+    scores = [0.3, 0.9, 0.8, 0.4]
+
+    result = evaluate_uplift(
+        data,
+        scores,
+        treatment_level=10,
+        control_level=0,
+        id_col="customer_id",
+    )
+
+    assert result["customer_id"].tolist() == [102, 103, 104, 101]
+    assert result["score"].tolist() == [0.9, 0.8, 0.4, 0.3]
+
+
+def test_customer_id_is_optional_for_backward_compatibility(sample_data):
+    scores = [0.1, 0.9, 0.2, 0.8, 0.7, 0.3]
+
+    result = evaluate_uplift(
+        sample_data,
+        scores,
+        treatment_level=10,
+        control_level=0,
+    )
+
+    assert "customer_id" not in result.columns
+    assert len(result) == 5
+
+def test_missing_customer_id_is_rejected():
+    data = pd.DataFrame({
+        "customer_id": [101, None, 103, 104],
+        "discount_offered": [10, 0, 10, 0],
+        "purchased": [1, 0, 0, 1],
+    })
+    scores = [0.9, 0.8, 0.7, 0.6]
+
+    with pytest.raises(
+        ValueError,
+        match="ID column must not contain missing values",
+    ):
+        evaluate_uplift(
+            data,
+            scores,
+            treatment_level=10,
+            control_level=0,
+            id_col="customer_id",
+        )
