@@ -152,3 +152,24 @@ def test_no_matching_treatment_control_rows_rejected():
             treatment_level=10,
             control_level=0,
         )
+
+
+def test_uplift_gain_matches_expected_calculation():
+    data = pd.DataFrame({
+        "discount_offered": [10, 0, 10, 0],
+        "purchased": [1, 0, 0, 1],
+    })
+    scores = [0.9, 0.8, 0.7, 0.6]
+
+    result = evaluate_uplift(
+        data,
+        scores,
+        treatment_level=10,
+        control_level=0,
+    )
+
+    # Two treatment and two control customers:
+    # gain = cumulative treated purchases - cumulative control purchases
+
+    expected_gain = [1.0, 1.0, 1.0, 0.0]
+    assert result["uplift_gain"].tolist() == expected_gain
