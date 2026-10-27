@@ -2,6 +2,7 @@ import { parseCSVContent } from './utils/csv'
 import { checkApiHealth } from './services/api'
 
 import { useEffect, useState } from 'react'
+import Plot from 'react-plotly.js'
 import {
   Activity, BarChart3, Bell, CheckCircle2, ChevronRight,
   CircleHelp, CloudUpload, Database, FileSpreadsheet, FileText,
@@ -9,6 +10,83 @@ import {
   UploadCloud, Workflow, X
 } from 'lucide-react'
 import './App.css'
+
+
+function DatasetCharts({ headers, rows }) {
+  const numericColumns = headers
+    .map((name, index) => ({
+      name,
+      index,
+      values: rows.map(row => String(row[index] ?? '').trim()),
+    }))
+    .filter(column => {
+      const valid = column.values.filter(
+        value => value !== '' && Number.isFinite(Number(value))
+      )
+      return valid.length >= 2
+    })
+    .slice(0, 3)
+
+  if (!rows.length) return null
+
+  return (
+    <section className="panel" style={{ marginTop: 20 }} id="visualizations">
+      <div className="panel-heading">
+        <div className="panel-title-icon"><BarChart3 size={23} /></div>
+        <div className="panel-title-copy">
+          <h2>Dataset Visualizations</h2>
+          <p>Charts generated from numeric columns in your uploaded CSV.</p>
+        </div>
+        <span className="step-badge">CSV DATA</span>
+      </div>
+
+      {numericColumns.length === 0 ? (
+        <p>No numeric columns with enough values were found. Upload a CSV
+          containing numeric data to display charts.</p>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          {numericColumns.map(column => {
+            const points = rows
+              .map((row, index) => ({
+                x: index + 1,
+                y: String(row[column.index] ?? '').trim(),
+              }))
+              .filter(point => point.y !== '' && Number.isFinite(Number(point.y)))
+              .slice(0, 100)
+
+            return (
+              <div key={column.index} style={{ minWidth: 0 }}>
+                <Plot
+                  data={[{
+                    x: points.map(point => point.x),
+                    y: points.map(point => Number(point.y)),
+                    type: 'bar',
+                    marker: { color: '#6c8cff' },
+                    name: column.name,
+                  }]}
+                  layout={{
+                    title: { text: column.name, font: { size: 16 } },
+                    autosize: true,
+                    margin: { l: 45, r: 15, t: 55, b: 45 },
+                    xaxis: { title: 'Row number' },
+                    yaxis: { title: column.name },
+                  }}
+                  config={{ responsive: true, displayModeBar: false }}
+                  style={{ width: '100%', height: 320 }}
+                  useResizeHandler
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <p style={{ fontSize: 12, opacity: 0.7 }}>
+        Showing up to 100 valid values per chart. These are descriptive
+        visualizations, not causal estimates.
+      </p>
+    </section>
+  )
+}
 
 function BudgetAllocationPreview() {
   const [budget, setBudget] = useState("");
@@ -567,7 +645,9 @@ function App() {
           </article>
         </section>
 
-              <section className="panel causal-results-panel" id="analysis">
+              <DatasetCharts headers={headers} rows={rows} />
+
+        <section className="panel causal-results-panel" id="analysis">
           <div className="causal-results-heading">
             <div className="panel-title-icon">
               <Activity size={23} />
