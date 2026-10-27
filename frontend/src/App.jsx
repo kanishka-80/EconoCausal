@@ -1,5 +1,5 @@
 import { parseCSVContent } from './utils/csv'
-import { checkApiHealth } from './services/api'
+import { checkApiHealth, uploadDataset } from './services/api'
 
 import { useEffect, useState } from 'react'
 import Plot from 'react-plotly.js'
@@ -169,6 +169,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
 
   const [apiStatus, setApiStatus] = useState('Checking')
+  const [uploadStatus, setUploadStatus] = useState('Not uploaded')
 
   useEffect(() => {
     let active = true
@@ -207,7 +208,7 @@ function App() {
 
     const reader = new FileReader()
 
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const content = String(event.target?.result ?? '')
         const { headers: columns, rows: data } = parseCSVContent(content)
@@ -215,6 +216,13 @@ function App() {
         setFileName(file.name)
         setHeaders(columns)
         setRows(data)
+        setUploadStatus('Uploading...')
+        try {
+          await uploadDataset(file)
+          setUploadStatus('Uploaded successfully')
+        } catch {
+          setUploadStatus('Local preview ready; backend upload unavailable')
+        }
       } catch (error) {
         setError(
           error instanceof Error
@@ -241,6 +249,7 @@ function App() {
     setSearch('')
     setError('')
     setIsLoading(false)
+    setUploadStatus('Not uploaded')
   }
 
   const missingValues = rows.reduce((total, row) => {
@@ -329,6 +338,10 @@ function App() {
             <div className="system-status" title="Backend API connection status">
               <span className={`online-dot ${apiStatus === 'Connected' ? 'api-connected' : apiStatus === 'Checking' ? 'api-checking' : 'api-offline'}`} />
               API: {apiStatus}
+            </div>
+
+            <div className="system-status" title="Dataset upload status">
+              Dataset: {uploadStatus}
             </div>
 
             <button className="icon-button" aria-label="Help" title="Help">
