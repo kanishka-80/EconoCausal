@@ -61,3 +61,26 @@ def test_uplift_evaluation_rejects_test_scores_with_wrong_length():
             treatment_level=10,
             control_level=0,
         )
+
+
+def test_dml_style_effect_scores_stay_aligned_with_test_rows():
+    evaluation_data = pd.DataFrame({
+        "discount_offered": [10, 0, 10, 0, 20],
+        "purchased": [1, 0, 0, 1, 1],
+    })
+
+    # Stand-in for DML individual effects in the same order as test rows.
+    individual_effects = np.array([0.95, 0.80, 0.60, 0.40, 0.99])
+
+    result = evaluate_uplift(
+        evaluation_data,
+        individual_effects,
+        treatment_level=10,
+        control_level=0,
+    )
+
+    # The level-20 row must be excluded, along with its score of 0.99.
+    assert len(result) == 4
+    assert result["score"].tolist() == [0.95, 0.80, 0.60, 0.40]
+    assert result["treatment"].tolist() == [10, 0, 10, 0]
+    assert result["outcome"].tolist() == [1, 0, 0, 1]
