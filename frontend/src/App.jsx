@@ -1,3 +1,4 @@
+import { parseCSVContent } from './utils/csv'
 import { checkApiHealth } from './services/api'
 
 import { useEffect, useState } from 'react'
@@ -110,32 +111,6 @@ function App() {
     }
   }, [])
 
-  function parseCSVLine(line) {
-    const values = []
-    let value = ''
-    let quoted = false
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]
-
-      if (char === '"') {
-        if (quoted && line[i + 1] === '"') {
-          value += '"'
-          i++
-        } else {
-          quoted = !quoted
-        }
-      } else if (char === ',' && !quoted) {
-        values.push(value.trim())
-        value = ''
-      } else {
-        value += char
-      }
-    }
-
-    values.push(value.trim())
-    return values
-  }
 
   function processFile(file) {
     if (!file) return
@@ -156,50 +131,18 @@ function App() {
 
     reader.onload = (event) => {
       try {
-        const content = String(event.target.result || '')
-        const lines = content
-          .replace(/^\uFEFF/, '')
-          .split(/\r?\n/)
-          .filter(line => line.trim())
-
-        if (lines.length < 2) {
-          setError('This file is empty or has no data rows.')
-          return
-        }
-
-       
-        const columns = parseCSVLine(lines[0])
-
-        if (!columns.length || columns.every(column => !column.trim())) {
-          setError('The CSV file must contain column headers.')
-          return
-        }
-
-        if (columns.some(column => !column.trim())) {
-          setError('Each column must have a header. Please check the first row.')
-          return
-        }
-
-        const data = lines.slice(1).map(parseCSVLine)
-
-        const invalidRowIndex = data.findIndex(
-          row => row.length !== columns.length
-        )
-
-        if (invalidRowIndex !== -1) {
-          const invalidRow = data[invalidRowIndex]
-
-          setError(
-            `Data row ${invalidRowIndex + 1} has ${invalidRow.length} columns; expected ${columns.length}. Please check your CSV file.`
-          )
-          return
-        }
+        const content = String(event.target?.result ?? '')
+        const { headers: columns, rows: data } = parseCSVContent(content)
 
         setFileName(file.name)
         setHeaders(columns)
         setRows(data)
-      } catch {
-        setError('Unable to read this CSV file.')
+      } catch (error) {
+        setError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to read this CSV file.'
+        )
       } finally {
         setIsLoading(false)
       }
