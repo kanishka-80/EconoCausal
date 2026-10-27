@@ -15,7 +15,12 @@ async function handleResponse(response) {
 }
 
 export async function checkApiHealth() {
-  const response = await fetch(`${API_BASE_URL}/health`)
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}/health`)
+  } catch {
+    throw new Error("Backend API is unreachable. Please check whether the server is running.")
+  }
 
   if (!response.ok) {
     throw new Error(`API health check failed (${response.status})`)
@@ -28,16 +33,26 @@ export async function uploadDataset(file) {
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch(`${API_BASE_URL}/data/upload`, {
-    method: 'POST',
-    body: formData,
-  })
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}/data/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+  } catch {
+    throw new Error("Dataset upload failed because the backend API is unreachable.")
+  }
 
   return handleResponse(response)
 }
 
 export async function getDatasetSummary() {
-  const response = await fetch(`${API_BASE_URL}/data/summary`)
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}/data/summary`)
+  } catch {
+    throw new Error("Dataset summary is unavailable because the backend API is unreachable.")
+  }
 
   return handleResponse(response)
 }

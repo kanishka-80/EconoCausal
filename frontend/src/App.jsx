@@ -1,5 +1,5 @@
 import { parseCSVContent } from './utils/csv'
-import { checkApiHealth, uploadDataset } from './services/api'
+import { checkApiHealth, uploadDataset, getDatasetSummary } from './services/api'
 
 import { useEffect, useState } from 'react'
 import Plot from 'react-plotly.js'
@@ -136,8 +136,8 @@ function BudgetAllocationPreview() {
         <div className="budget-scenario">
           <strong>Budget received: {Number(budget).toLocaleString()}</strong>
           <p>
-            Your budget input is valid. Allocation recommendations will appear
-            here after the optimization model and API are connected.
+            Your budget input is valid. No allocation has been calculated yet.
+            Recommendations will appear after the optimization model and API are connected.
           </p>
           <span className="step-badge">PREVIEW ONLY</span>
         </div>
@@ -170,6 +170,7 @@ function App() {
 
   const [apiStatus, setApiStatus] = useState('Checking')
   const [uploadStatus, setUploadStatus] = useState('Not uploaded')
+  const [summaryStatus, setSummaryStatus] = useState('Waiting for dataset')
 
   useEffect(() => {
     let active = true
@@ -205,6 +206,8 @@ function App() {
     setHeaders([])
     setRows([])
     setSearch('')
+    setUploadStatus('Not uploaded')
+    setSummaryStatus('Waiting for dataset')
 
     const reader = new FileReader()
 
@@ -220,8 +223,16 @@ function App() {
         try {
           await uploadDataset(file)
           setUploadStatus('Uploaded successfully')
+          setSummaryStatus('Loading backend summary...')
+          try {
+            await getDatasetSummary()
+            setSummaryStatus('Backend summary received')
+          } catch {
+            setSummaryStatus('Backend summary unavailable; showing local statistics')
+          }
         } catch {
           setUploadStatus('Local preview ready; backend upload unavailable')
+          setSummaryStatus('Using local statistics; backend upload unavailable')
         }
       } catch (error) {
         setError(
@@ -250,6 +261,7 @@ function App() {
     setError('')
     setIsLoading(false)
     setUploadStatus('Not uploaded')
+    setSummaryStatus('Waiting for dataset')
   }
 
   const missingValues = rows.reduce((total, row) => {
@@ -436,7 +448,7 @@ function App() {
             </div>
             <p>Causal analysis</p>
             <h2>Not started</h2>
-            <small>Analysis integration pending</small>
+            <small>{apiStatus === "Connected" ? "API connected; analysis endpoint not yet available" : "Connect the backend API to enable analysis"}</small>
           </article>
 
           <article className="stat-card amber">
@@ -484,7 +496,7 @@ function App() {
             </div>
             <p>Missing Values</p>
             <h2>{missingValues.toLocaleString()}</h2>
-            <small>Blank cells in the dataset</small>
+            <small>Blank cells · {summaryStatus}</small>
           </article>
         </section>
 
@@ -690,8 +702,8 @@ function App() {
 
             <article className="causal-result-card">
               <span>Analysis Status</span>
-              <strong className="causal-status">Waiting for model</strong>
-              <small>Backend integration pending</small>
+              <strong className="causal-status">{apiStatus === "Connected" ? "Model pending" : "API unavailable"}</strong>
+              <small>{apiStatus === 'Connected' ? 'API online; causal model endpoint pending' : 'Backend API offline'}</small>
             </article>
           </div>
 
