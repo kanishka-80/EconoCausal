@@ -67,3 +67,37 @@ def test_different_number_of_rows():
 
     with pytest.raises(ValueError):
         dml_model.fit(X, T[:-1], Y)
+
+
+def test_invalid_treatment_groups():
+    X, T, Y = create_sample_data()
+    T = np.zeros(len(T))
+
+    dml_model = DMLEstimator()
+
+    with pytest.raises(ValueError, match="at least two treatment groups"):
+        dml_model.fit(X, T, Y)
+
+
+def test_invalid_outcome_values():
+    X, T, Y = create_sample_data()
+    Y = Y.astype(float)
+    Y[0] = np.nan
+
+    dml_model = DMLEstimator()
+
+    with pytest.raises(ValueError, match="Y contains missing or infinite values"):
+        dml_model.fit(X, T, Y)
+
+
+def test_wrong_number_of_features_during_estimation():
+    X, T, Y = create_sample_data()
+
+    dml_model = DMLEstimator()
+    dml_model.fit(X, T, Y)
+
+    X_wrong = np.random.rand(5, 3)
+
+    with pytest.raises(ValueError, match="different number of features"):
+        dml_model.estimate_effect(X_wrong, T0=0, T1=10)
+
