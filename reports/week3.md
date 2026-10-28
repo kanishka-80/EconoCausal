@@ -43,3 +43,30 @@ Day 1 focused on reviewing the existing ML implementation and preparing for the 
 **Outcome:** Existing tests for data validation, cleaning, feature preparation, DML model training, effect estimation, and input validation passed.
 
 **Next step:** Review the current evaluation coverage and identify any missing regression tests for model behavior.
+
+
+### Week 3 — Day 3: DML Estimator Validation
+
+**Tasks completed:**
+- Reviewed the existing `DMLEstimator` implementation.
+- Added tests for invalid treatment groups.
+- Added a test for missing outcome values.
+- Added a test for feature-count mismatch during effect estimation.
+- Ran the DML estimator test suite using pytest.
+
+**Test results:**
+- Total tests: 8
+- Passed: 8
+- Failed: 0
+- Execution time: 3.98 seconds
+
+**Outcome:**
+
+All 8 DML estimator tests passed, including the new input-validation tests. The tests help verify that the estimator handles these invalid inputs correctly.
+
+**Next steps:**
+- Confirm the optimizer input/output contract with Harsh.
+- Prepare optimizer-compatible response estimates after the interface is agreed.
+- Test compatibility between the ML estimator and the optimizer.
+
+**Status:** DML validation tests completed; optimizer integration is pending.
