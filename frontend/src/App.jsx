@@ -171,6 +171,7 @@ function App() {
   const [apiStatus, setApiStatus] = useState('Checking')
   const [uploadStatus, setUploadStatus] = useState('Not uploaded')
   const [summaryStatus, setSummaryStatus] = useState('Waiting for dataset')
+  const [backendSummary, setBackendSummary] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -208,6 +209,7 @@ function App() {
     setSearch('')
     setUploadStatus('Not uploaded')
     setSummaryStatus('Waiting for dataset')
+    setBackendSummary(null)
 
     const reader = new FileReader()
 
@@ -225,12 +227,15 @@ function App() {
           setUploadStatus('Uploaded successfully')
           setSummaryStatus('Loading backend summary...')
           try {
-            await getDatasetSummary()
+            const summary = await getDatasetSummary()
+            setBackendSummary(summary.data ?? summary)
             setSummaryStatus('Backend summary received')
           } catch {
+            setBackendSummary(null)
             setSummaryStatus('Backend summary unavailable; showing local statistics')
           }
         } catch {
+          setBackendSummary(null)
           setUploadStatus('Local preview ready; backend upload unavailable')
           setSummaryStatus('Using local statistics; backend upload unavailable')
         }
@@ -271,8 +276,13 @@ function App() {
     }, 0)
   }, 0)
 
-  const totalRows = rows.length
-  const totalColumns = headers.length
+  const totalRows = backendSummary?.row_count ?? rows.length
+  const totalColumns = backendSummary?.column_count ?? headers.length
+  const backendMissingValues = backendSummary?.columns?.reduce(
+    (total, column) => total + (column.null_count ?? 0),
+    0
+  )
+  const displayedMissingValues = backendMissingValues ?? missingValues
 
   const isSyntheticDataset =
     fileName.toLowerCase().includes('synthetic') ||
@@ -495,7 +505,7 @@ function App() {
               </span>
             </div>
             <p>Missing Values</p>
-            <h2>{missingValues.toLocaleString()}</h2>
+            <h2>{displayedMissingValues.toLocaleString()}</h2>
             <small>Blank cells · {summaryStatus}</small>
           </article>
         </section>
