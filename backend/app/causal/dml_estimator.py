@@ -52,6 +52,10 @@ class DMLEstimator:
         except (TypeError, ValueError) as exc:
             raise ValueError("T and Y must contain valid values.") from exc
 
+        # Validate treatment values
+        if not np.isfinite(T_array).all():
+            raise ValueError("T contains missing or infinite values.")
+
         if len(X_array) != len(T_array) or len(X_array) != len(Y_array):
             raise ValueError("X, T, and Y must have the same number of rows.")
 
