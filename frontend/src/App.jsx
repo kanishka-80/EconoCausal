@@ -3,6 +3,8 @@ import { checkApiHealth, uploadDataset, getDatasetSummary } from './services/api
 import CausalAnalysisPanel from './components/CausalAnalysisPanel'
 import { useEffect, useState } from 'react'
 import Plot from 'react-plotly.js'
+
+import BudgetAllocationPanel from './components/BudgetAllocationPanel'
 import {
   Activity, BarChart3, Bell, CheckCircle2, ChevronRight,
   CircleHelp, CloudUpload, Database, FileSpreadsheet, FileText,
@@ -88,76 +90,6 @@ function DatasetCharts({ headers, rows }) {
   )
 }
 
-function BudgetAllocationPreview() {
-  const [budget, setBudget] = useState("");
-  const [error, setError] = useState("");
-  const [showPreview, setShowPreview] = useState(false);
-
-  function handlePreview() {
-    const amount = Number(budget);
-
-    if (budget.trim() === "" || !Number.isFinite(amount) || amount <= 0) {
-      setError("Please enter a budget greater than zero.");
-      setShowPreview(false);
-      return;
-    }
-
-    setError("");
-    setShowPreview(true);
-  }
-
-  return (
-    <div className="budget-preview">
-      <div className="budget-input-area">
-        <label htmlFor="marketing-budget">Marketing budget</label>
-        <div className="budget-input-row">
-          <input
-            id="marketing-budget"
-            type="number"
-            min="0"
-            step="any"
-            placeholder="Enter budget amount"
-            value={budget}
-            onChange={(event) => {
-              setBudget(event.target.value);
-              setError("");
-              setShowPreview(false);
-            }}
-          />
-          <button type="button" onClick={handlePreview}>
-            Preview scenario
-          </button>
-        </div>
-
-        {error && <p className="error-message">{error}</p>}
-      </div>
-
-      {showPreview && (
-        <div className="budget-scenario">
-          <strong>Budget received: {Number(budget).toLocaleString()}</strong>
-          <p>
-            Your budget input is valid. No allocation has been calculated yet.
-            Recommendations will appear after the optimization model and API are connected.
-          </p>
-          <span className="step-badge">PREVIEW ONLY</span>
-        </div>
-      )}
-
-      {!showPreview && !error && (
-        <div className="empty-table">
-          <div className="database-illustration">
-            <Workflow size={35} />
-          </div>
-          <strong>Allocation preview not generated</strong>
-          <p>
-            Enter a positive budget amount to validate your input and preview
-            the scenario.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function App() {
   const [fileName, setFileName] = useState('')
@@ -697,7 +629,7 @@ function App() {
             <span className="step-badge">STEP 03</span>
           </div>
 
-          
+
 <CausalAnalysisPanel
   headers={headers}
   rows={rows}
@@ -713,7 +645,7 @@ function App() {
             </p>
           </div>
         </section>
-       
+
 
 <section className="panel" id="budget" style={{ marginTop: 20 }}>
   <div className="panel-heading">
@@ -724,15 +656,19 @@ function App() {
     <div className="panel-title-copy">
       <h2>Budget Allocation</h2>
       <p>
-        Enter a marketing budget to prepare an allocation scenario.
-        Actual recommendations require the connected optimization model.
-      </p>
+  Configure a marketing budget and discount offers to request
+  a customer allocation from the optimization API.
+</p>
     </div>
 
-    <span className="step-badge">UI PREVIEW</span>
+    <span className="step-badge">STEP 04</span>
   </div>
 
-  <BudgetAllocationPreview />
+ <BudgetAllocationPanel
+  headers={headers}
+  rows={rows}
+  apiStatus={apiStatus}
+/>
 </section>
 
 
