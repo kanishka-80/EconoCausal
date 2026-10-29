@@ -1,6 +1,6 @@
 import { parseCSVContent } from './utils/csv'
 import { checkApiHealth, uploadDataset, getDatasetSummary } from './services/api'
-
+import CausalAnalysisPanel from './components/CausalAnalysisPanel'
 import { useEffect, useState } from 'react'
 import Plot from 'react-plotly.js'
 import {
@@ -697,25 +697,13 @@ function App() {
             <span className="step-badge">STEP 03</span>
           </div>
 
-          <div className="causal-result-grid">
-            <article className="causal-result-card">
-              <span>Treatment Effect</span>
-              <strong>Not available</strong>
-              <small>Awaiting model output</small>
-            </article>
+          
+<CausalAnalysisPanel
+  headers={headers}
+  rows={rows}
+  apiStatus={apiStatus}
+/>
 
-            <article className="causal-result-card">
-              <span>Confidence Interval</span>
-              <strong>Not available</strong>
-              <small>Awaiting statistical estimates</small>
-            </article>
-
-            <article className="causal-result-card">
-              <span>Analysis Status</span>
-              <strong className="causal-status">{apiStatus === "Connected" ? "Model pending" : "API unavailable"}</strong>
-              <small>{apiStatus === 'Connected' ? 'API online; causal model endpoint pending' : 'Backend API offline'}</small>
-            </article>
-          </div>
 
           <div className="causal-results-notice">
             <Activity size={18} />
