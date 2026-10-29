@@ -208,4 +208,4 @@ The `EffectEstimator` wrapper currently returns individual effects but does not 
 
 **Complete shared-branch integration and DoWhy execution: Pending.**
 
-Week 3 can be handed off for team review with the limitations and remaining dependencies explicitly recorded. It should not yet be described as fully integrated or production-ready.
+Week 3 can be handed off for team review with the limitations and remaining dependencies explicitly recorded. It should not yet be described as fully integrated or production-ready
