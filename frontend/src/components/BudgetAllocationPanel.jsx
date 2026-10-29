@@ -2,9 +2,15 @@
 import { useState } from 'react'
 import { runBudgetOptimization } from '../services/api'
 
-export default function BudgetAllocationPanel({ headers = [], rows = [], apiStatus }) {
+const ALLOWED_DISCOUNTS = [0, 5, 10, 20]
+
+export default function BudgetAllocationPanel({
+  headers = [],
+  rows = [],
+  apiStatus,
+}) {
   const [budget, setBudget] = useState('1000')
-  const [discounts, setDiscounts] = useState('10,20')
+  const [discounts, setDiscounts] = useState('5,10,20')
   const [customerColumn, setCustomerColumn] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -17,7 +23,9 @@ export default function BudgetAllocationPanel({ headers = [], rows = [], apiStat
     const budgetValue = Number(budget)
     const discountValues = discounts
       .split(',')
-      .map((value) => Number(value.trim()))
+      .map((value) => value.trim())
+      .filter((value) => value !== '')
+      .map(Number)
 
     if (apiStatus !== 'Connected') {
       setError('Backend connected nahi hai.')
@@ -31,9 +39,17 @@ export default function BudgetAllocationPanel({ headers = [], rows = [], apiStat
 
     if (
       discountValues.length === 0 ||
-      discountValues.some((value) => !Number.isFinite(value) || value <= 0)
+      discountValues.some(
+        (value) =>
+          !Number.isFinite(value) || !ALLOWED_DISCOUNTS.includes(value),
+      )
     ) {
-      setError('Discounts comma-separated positive numbers mein enter karo.')
+      setError('Sirf allowed discounts enter karo: 0, 5, 10, 20.')
+      return
+    }
+
+    if (new Set(discountValues).size !== discountValues.length) {
+      setError('Har discount sirf ek baar enter karo.')
       return
     }
 
@@ -43,11 +59,15 @@ export default function BudgetAllocationPanel({ headers = [], rows = [], apiStat
     }
 
     const columnIndex = headers.indexOf(customerColumn)
-    const customerIds = rows
-      .map((row) => String(row[columnIndex] ?? '').trim())
-      .filter(Boolean)
+    const customerIds = [
+      ...new Set(
+        rows
+          .map((row) => String(row[columnIndex] ?? '').trim())
+          .filter(Boolean),
+      ),
+    ]
 
-    if (customerIds.length === 0) {
+    if (columnIndex < 0 || customerIds.length === 0) {
       setError('Selected column mein customer IDs nahi mile.')
       return
     }
@@ -59,8 +79,12 @@ export default function BudgetAllocationPanel({ headers = [], rows = [], apiStat
         budget: budgetValue,
         available_discounts: discountValues,
         customer_ids: customerIds,
-        objective: 'maximize_revenue',
+        objective: 'MAXIMIZE_REVENUE',
       })
+
+      if (!response?.data) {
+        throw new Error('Backend se expected optimization data nahi mila.')
+      }
 
       setResult(response.data)
     } catch (err) {
@@ -70,29 +94,39 @@ export default function BudgetAllocationPanel({ headers = [], rows = [], apiStat
     }
   }
 
+  const allocations = result?.allocations ?? []
+  const summary = result?.summary
+
   return (
     <div className="panel-content">
       <p>
-        Budget aur discount options enter karke backend optimization endpoint
-        test karo. Mock output ko validated recommendation mat samajhna.
+        Budget aur allowed discount options enter karke backend optimization
+        endpoint test karo. Mock output ko validated recommendation mat samajhna.
       </p>
 
       <label htmlFor="marketing-budget">Marketing budget</label>
       <input
         id="marketing-budget"
         type="number"
-        min="1"
+        min="0.01"
+        step="any"
         value={budget}
         onChange={(event) => setBudget(event.target.value)}
       />
 
-      <label htmlFor="discount-options">Available discounts (comma-separated)</label>
+      <label htmlFor="discount-options">
+        Available discounts (comma-separated)
+      </label>
       <input
         id="discount-options"
         value={discounts}
         onChange={(event) => setDiscounts(event.target.value)}
-        placeholder="10,20"
+        placeholder="5,10,20"
+        aria-describedby="discount-help"
       />
+      <small id="discount-help">
+        Allowed values: 0, 5, 10, 20
+      </small>
 
       <label htmlFor="customer-id-column">Customer ID column</label>
       <select
@@ -102,14 +136,13 @@ export default function BudgetAllocationPanel({ headers = [], rows = [], apiStat
       >
         <option value="">Select customer ID column</option>
         {headers.map((column) => (
-          <option key={column} value={column}>{column}</option>
+          <option key={column} value={column}>
+            {column}
+          </option>
         ))}
       </select>
 
-      <button
-        onClick={optimize}
-        disabled={loading || rows.length === 0}
-      >
+      <button onClick={optimize} disabled={loading || rows.length === 0}>
         {loading ? 'Optimizing...' : 'Run budget optimization'}
       </button>
 
@@ -125,25 +158,81 @@ export default function BudgetAllocationPanel({ headers = [], rows = [], apiStat
             </p>
           )}
 
-          <p><strong>Status:</strong> {result.status}</p>
-          <p><strong>Optimization ID:</strong> {result.optimization_id}</p>
-          <p><strong>Total spend:</strong> {result.total_spend}</p>
-          <p><strong>Unused budget:</strong> {result.unused_budget}</p>
-          <p><strong>Objective value:</strong> {result.objective_value}</p>
-          <p><strong>Customers allocated:</strong> {result.allocated_customers_count}</p>
+          <p><strong>Status:</strong> {result.status ?? 'Not provided'}</p>
+          <p>
+            <strong>Optimization ID:</strong>{' '}
+            {result.optimization_id ?? 'Not provided'}
+          </p>
+          <p>
+            <strong>Total budget:</strong>{' '}
+            {result.total_budget ?? 'Not provided'}
+          </p>
+          <p>
+            <strong>Total spend:</strong>{' '}
+            {result.total_spend ?? 'Not provided'}
+          </p>
+          <p>
+            <strong>Unallocated budget:</strong>{' '}
+            {result.unallocated_budget ?? 'Not provided'}
+          </p>
+          <p>
+            <strong>Expected uplift:</strong>{' '}
+            {result.total_expected_uplift ?? 'Not provided'}
+          </p>
+
+          {summary && (
+            <>
+              <h4>Allocation summary</h4>
+              <p>
+                <strong>Total customers:</strong>{' '}
+                {summary.total_customers ?? 'Not provided'}
+              </p>
+              <p>
+                <strong>Treated customers:</strong>{' '}
+                {summary.treated_customers ?? 'Not provided'}
+              </p>
+              <p>
+                <strong>Control customers:</strong>{' '}
+                {summary.control_customers ?? 'Not provided'}
+              </p>
+            </>
+          )}
 
           <h4>Customer allocation</h4>
-          {result.allocation?.length ? (
+          {allocations.length > 0 ? (
             <ul>
-              {result.allocation.map((item, index) => (
+              {allocations.map((item, index) => (
                 <li key={`${item.customer_id}-${index}`}>
                   {item.customer_id}: discount {item.assigned_discount},
-                  {' '}cost {item.cost}
+                  {' '}subsidy cost {item.subsidy_cost ?? 'Not provided'},
+                  {' '}expected uplift {item.expected_uplift ?? 'Not provided'}
                 </li>
               ))}
             </ul>
           ) : (
             <p>No allocation rows returned.</p>
+          )}
+
+          {result.limitations?.length > 0 && (
+            <>
+              <h4>Limitations</h4>
+              <ul>
+                {result.limitations.map((limitation, index) => (
+                  <li key={index}>{limitation}</li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {result.warnings?.length > 0 && (
+            <>
+              <h4>Warnings</h4>
+              <ul>
+                {result.warnings.map((warning, index) => (
+                  <li key={index}>{warning}</li>
+                ))}
+              </ul>
+            </>
           )}
         </div>
       )}
