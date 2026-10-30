@@ -18,6 +18,7 @@ class DMLEstimator:
                 random_state=random_state
             ),
             discrete_treatment=True,
+            categories="auto",
             cv=3,
             n_estimators=100,
             random_state=random_state
@@ -52,7 +53,6 @@ class DMLEstimator:
         except (TypeError, ValueError) as exc:
             raise ValueError("T and Y must contain valid values.") from exc
 
-        # Validate treatment values
         if not np.isfinite(T_array).all():
             raise ValueError("T contains missing or infinite values.")
 
@@ -67,12 +67,14 @@ class DMLEstimator:
         if len(treatment_values) < 2:
             raise ValueError("T must contain at least two treatment groups.")
 
-        if len(treatment_values) == 2:
-            for value in treatment_values:
-                if np.sum(T_array == value) < 3:
-                    raise ValueError(
-                        "Each treatment group needs enough samples for cv=3."
-                    )
+        if not np.isin(treatment_values, [0, 5, 10, 20]).all():
+            raise ValueError("Treatment values must be 0, 5, 10, or 20.")
+
+        for value in treatment_values:
+            if np.sum(T_array == value) < 3:
+                raise ValueError(
+                    "Each treatment group needs at least 3 samples for cv=3."
+                )
 
         self.model.fit(
             Y=Y_array,

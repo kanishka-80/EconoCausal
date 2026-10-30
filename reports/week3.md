@@ -1,12 +1,10 @@
-# EconoCausal — Week 3 Report
+# EconoCausal - Week 3 Report
 
 **Name:** Ritik Ranjan Mohanta  
 **Role:** Machine Learning (ML)  
 **Week:** 3
 
-## Day 1 — Code Review
-
-**Date:** 26 October 2026
+## Day 1 - Code Review
 
 ### Tasks Completed
 - Reviewed the existing project structure.
@@ -14,86 +12,105 @@
 - Examined the current code to understand the project's progress.
 
 ### Work Summary
-Focused on reviewing the existing ML code and understanding the current implementation before making further changes.
+Focused on understanding the existing ML implementation and preparing for further development.
 
-### Pending Tasks
-- Review existing ML tests.
-- Coordinate with the optimizer team member to confirm the required model output format.
-- Identify the changes needed for the upcoming implementation tasks.
+## Day 2 - ML Testing and Debugging
 
-### Conclusion
-Day 1 focused on reviewing the existing ML implementation and preparing for the next development tasks.
-
-
-
-### Day 2 — ML Testing and Debugging
-
-**Tasks completed:**
+### Tasks Completed
 - Ran the backend test suite using pytest.
-- Identified an import error: Python could not find the `app` package.
+- Identified an import error because Python could not find the `app` package.
 - Fixed the test execution issue by setting `PYTHONPATH=backend`.
-- Successfully ran all 9 tests.
+- Successfully ran the existing 9 tests.
 
-**Test results:**
-- Data pipeline tests: 4 passed.
-- DML estimator tests: 5 passed.
-- Total: 9 passed, 0 failed.
-- Execution time: 3.35 seconds.
+### Outcome
+All 9 tests passed successfully.
 
-**Outcome:** Existing tests for data validation, cleaning, feature preparation, DML model training, effect estimation, and input validation passed.
+## Day 3 - DML Estimator Validation
 
-**Next step:** Review the current evaluation coverage and identify any missing regression tests for model behavior.
+### Tasks Completed
+- Reviewed the `DMLEstimator` implementation.
+- Added validation for invalid treatment groups.
+- Added validation for missing and infinite values.
+- Added feature-count mismatch validation.
+- Improved effect-estimation input validation.
+- Added tests for invalid treatment-effect estimates.
 
+### Outcome
+The latest full backend test suite passed all 17 tests.
 
-# Week 3 — Day 3: DML Estimator Validation
+## Day 4 - Optimizer Compatibility Preparation
 
-**Tasks completed:**
-- Reviewed the existing `DMLEstimator` implementation.
-- Added tests for invalid treatment groups.
-- Added a test for missing outcome values.
-- Added a test for feature-count mismatch during effect estimation.
-- Added validation for missing or infinite treatment values.
-- Added tests to reject empty and non-finite treatment-effect estimates.
-- Ran the backend test suite using `pytest`.
+### Tasks Completed
+- Reviewed the ML effect-estimation output.
+- Prepared the treatment-effect estimation interface.
+- Identified the optimizer output requirements.
+- Prepared customer-level treatment-effect estimates for discount options.
 
-**Test results:**
-- DML estimator tests: 9 passed, 0 failed.
-- Execution time: 3.60 seconds.
-- Latest full backend test run: 17 passed, 0 failed.
+### Expected Output Format
+- Customer-level uplift estimates.
+- Treatment options: 5%, 10%, and 20%.
+- 0% discount as the baseline.
 
-**Outcome:**
+## Day 5 - Optimizer-Facing Uplift Estimation
 
-All 9 DML estimator tests passed, including the new test for missing treatment values. The latest full backend test run also passed all 17 tests, including the effect-estimation validation tests.
+### Tasks Completed
+- Updated the effect estimation implementation.
+- Added `estimate_for_optimizer()` to calculate individual treatment effects.
+- Generated uplift estimates for 5%, 10%, and 20% discounts against the 0% baseline.
+- Added validation for effect count and non-finite values.
+- Updated feature preparation to preserve customer IDs and the complete feature matrix.
 
-**Next steps:**
-- Confirm the optimizer input/output contract with Harsh.
-- Prepare optimizer-compatible response estimates after the interface is agreed.
-- Test compatibility between the ML estimator and the optimizer.
+### Outcome
+Prepared an optimizer-compatible uplift matrix with three treatment columns.
 
-**Status:** Estimator validation completed; optimizer integration is pending.
+## Day 6 - Complete DML Pipeline
 
----
+### Tasks Completed
+- Created `run_pipeline.py`.
+- Loaded the enriched synthetic dataset.
+- Executed the data cleaning and feature preparation steps.
+- Encoded categorical features and scaled numerical features.
+- Split the dataset into training and testing sets.
+- Trained the DML model.
+- Generated individual customer uplift estimates.
+- Validated the output shape and finite values.
+- Saved the generated output as `reports/customer_uplift_matrix.csv`.
 
-# Week 3 — Day 4: Optimizer Compatibility Preparation
+### Results
+- Dataset size: 20,000 rows and 40 columns.
+- Encoded feature matrix: 20,000 rows and 51 features.
+- Training samples: 16,000.
+- Testing samples: 4,000.
+- Uplift matrix: 20,000 rows and 3 treatment columns.
 
-**Tasks planned:**
-- Review the existing ML effect-estimation outputs.
-- Identify the information the optimizer needs from the ML component.
-- Confirm the required input/output format with Harsh before implementing integration.
-- Prepare a small sample of customer-level treatment-effect estimates for compatibility testing.
-- Check that the prepared estimates contain valid, finite values.
-- Document any interface requirements or blockers.
+## Day 7 - Final Testing and Validation
 
-**Expected outcome:**
+### Tasks Completed
+- Executed the complete ML pipeline successfully.
+- Verified the generated customer uplift CSV.
+- Checked the output columns and customer IDs.
+- Checked missing values and duplicate customer IDs.
+- Reviewed the Week 3 documentation.
+- Ran the complete backend test suite.
 
-Prepare validated ML response estimates in a format agreed upon with the optimizer component, ready for compatibility testing.
+### Final Test Results
+- Total tests passed: 17.
+- Failed tests: 0.
+- Execution time: 3.54 seconds.
 
-**Next steps:**
-- Test the ML-to-optimizer data flow once the interface is confirmed.
-- Fix any compatibility issues found during testing.
-- Record test results and update the project documentation.
+### Generated Output
+`reports/customer_uplift_matrix.csv`
 
-**Status:** Planned; optimizer integration and compatibility testing are pending confirmation of the interface.
+Columns:
+- `customer_id`
+- `uplift_5`
+- `uplift_10`
+- `uplift_20`
 
+### Final Conclusion
 
+Successfully completed the Week 3 ML implementation and validation tasks. Developed a complete DML workflow, generated customer-level uplift estimates for three discount options, and prepared the output in CSV format for optimizer use.
 
+The final backend test suite passed all 17 tests.
+
+**Status:** Week 3 ML implementation and local validation completed.
