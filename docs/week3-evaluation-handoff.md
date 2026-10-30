@@ -198,7 +198,7 @@ The `EffectEstimator` wrapper currently returns individual effects but does not 
 | Confirm customer-wise effect output contract | DML + Backend | Pending |
 | Connect causal results to API | Backend | Pending |
 | Display correctly labeled evaluation results | Frontend | Pending |
-| Review and merge through team PR process | Team | Pending |
+| Review and merge through team PR process | Team | Pending 
 
 ## 12. Final Handoff Status
 
