@@ -302,7 +302,7 @@ def test_optimization_run_valid_payload():
     assert response.status_code == 200
     res_json = response.json()
     assert res_json["status"] == "success"
-    assert res_json["data"]["is_mock"] is True
+    assert res_json["data"]["is_mock"] is False
     assert res_json["data"]["total_spend"] == 20.0
 
 
@@ -317,3 +317,6 @@ def test_optimization_run_rejects_non_positive_budget():
     data = response.json()
     assert data["status"] == "error"
     assert data["error"]["code"] == "VALIDATION_ERROR"
+
+
+
