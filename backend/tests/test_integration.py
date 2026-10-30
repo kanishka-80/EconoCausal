@@ -93,8 +93,8 @@ def test_full_pipeline_mock_workflow():
     opt_json = opt_resp.json()
     assert opt_json["status"] == "success"
     opt_payload = opt_json["data"]
-    assert opt_payload["status"] == "SCAFFOLD_MOCK"
-    assert opt_payload["is_mock"] is True
+    assert opt_payload["status"] == "FEASIBLE"
+    assert opt_payload["is_mock"] is False
     assert opt_payload["total_spend"] <= 100.0
     assert len(opt_payload["allocation"]) == 3
 
@@ -155,3 +155,5 @@ def test_cors_preflight_headers():
     )
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+

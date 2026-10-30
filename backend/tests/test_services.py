@@ -151,7 +151,8 @@ def test_optimization_service_mock_run():
         customer_ids=["c1", "c2", "c3"],
     )
     result = service.run_optimization(req)
-    assert result.is_mock is True
-    assert result.status == "SCAFFOLD_MOCK"
+    assert result.is_mock is False
+    assert result.status == "FEASIBLE"
     assert result.total_spend <= 100.0
     assert len(result.allocation) == 3
+
