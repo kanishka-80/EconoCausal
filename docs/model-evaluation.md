@@ -88,3 +88,46 @@ Neither good predictive performance nor passing refutation checks alone proves c
 - Which treatment comparison is supported?
 - Which evaluation metrics are justified by the available data?
 - What output fields are needed by the API and frontend?
+
+## 10. Week 3 Day 2 - Preliminary Propensity Diagnostics
+
+### Dataset and setup
+- Dataset: `econocausal_enriched_synthetic_dataset.csv`
+- Data shape: 20,000 rows and 40 columns.
+- Treatment: `discount_offered`, with levels 0, 5, 10, and 20.
+- Outcome: `purchased`, binary (0/1).
+- Candidate covariates used: 31.
+- Propensity scores were estimated and evaluated on the same dataset.
+  These are in-sample diagnostics, not cross-fitted estimates.
+
+### Propensity summary
+- Probability sums-to-one check: passed.
+- Minimum estimated probability: 0.000578.
+- Maximum estimated probability: 0.934422.
+- Probability entries below 0.01: 308.
+  - `propensity_0`: 306.
+  - `propensity_5`: 2.
+  - `propensity_10`: 0.
+  - `propensity_20`: 0.
+
+These counts refer to probability entries, not necessarily unique customers.
+The results flag potential overlap concerns for further investigation.
+
+### Covariate balance
+- Numeric pairwise comparisons: 126.
+- Comparisons with absolute SMD >= 0.1: 24.
+- Maximum absolute SMD: 0.948468 for `recency_days`, treatment 0 vs 20.
+- Categorical pairwise comparisons: 60.
+- Maximum category-proportion difference: 0.0226.
+
+Categorical proportion differences are not SMDs; the numeric SMD threshold
+must not be applied to them.
+
+### Interpretation and limitations
+These are preliminary diagnostics on a synthetic dataset. They indicate
+measured covariate imbalance and potential propensity overlap concerns;
+they do not prove or disprove causal identification. Covariate timing and
+the treatment assignment mechanism still need domain review. Propensity
+estimates are in-sample and should not be described as cross-fitted results.
+The supported primary treatment comparison and final evaluation contract
+remain to be confirmed with the DML owner.

@@ -65,3 +65,122 @@ as pre-treatment confounders.
 - Which candidate features were measured before treatment?
 - What is the purchase observation window?
 - Which treatment comparisons will the team estimate?
+
+## 8. DAG Implementation and Validation Status
+
+The current implementation in `backend/app/causal/dag.py`
+builds a provisional graph using `discount_offered` as the
+treatment and `purchased` as the outcome.
+
+Each candidate covariate is currently connected to both
+the treatment and the outcome. These edges represent
+hypothesized relationships and are not independently
+verified causal relationships.
+
+The `CausalDAG` class provides:
+- `has_edge(source, target)` to check whether an edge exists.
+- `number_of_nodes()` and `number_of_edges()` to inspect graph size.
+- `has_cycle()` to detect directed cycles.
+- `is_acyclic()` to check whether the graph is acyclic.
+
+Automated tests cover the expected graph structure, treatment
+and outcome presence, self-loops, cycle detection, and a
+disconnected acyclic graph.
+
+### Interpretation and limitations
+
+- An acyclic graph satisfies a structural DAG requirement;
+  it does not establish that the causal assumptions are correct.
+- Candidate covariates must be reviewed for availability,
+  timing before treatment, and causal justification.
+- The treatment assignment mechanism and purchase observation
+  window remain unresolved.
+- The dataset is synthetic, and its balanced treatment counts
+  do not establish covariate overlap or causal validity.
+- The graph must be reviewed against the approved causal design
+  before its edges are treated as an agreed causal model.
+
+
+## 9. Propensity Score and Covariate Balance Diagnostics
+
+### Dataset and Treatment Groups
+- Dataset: `econocausal_enriched_synthetic_dataset.csv`
+- Observations: 20,000
+- Treatment: `discount_offered`
+- Outcome: `purchased`
+- Treatment levels: 0, 5, 10, and 20
+- Observations per treatment group: 5,000
+
+### Propensity Score Diagnostics
+- Multinomial logistic regression estimated one propensity score per treatment level.
+- Probability rows summed to approximately 1.
+- Minimum estimated probability across all treatment-probability columns: approximately 0.000578.
+- Maximum estimated probability across all treatment-probability columns: approximately 0.934422.
+- Probability values below 0.01 across all treatment columns: 308.
+- For the observed treatment, 3 observations in the discount-0 group had estimated probabilities below 0.01; no such observations were found in the other groups.
+
+### Raw Numeric Covariate Balance
+- Pairwise comparisons: 126.
+- Comparisons with absolute SMD >= 0.1: 24.
+- Comparisons with absolute SMD < 0.1: 102.
+- Missing SMD values: 0.
+- Largest observed imbalance: `recency_days`, discount 0 versus discount 20, absolute SMD approximately 0.948468.
+
+### Output Artifact
+The diagnostic report was generated as `covariate_balance_report.csv`. It contains treatment-pair comparisons, covariate names, absolute standardized mean differences, and imbalance flags.
+
+### Limitations and Follow-up
+These are preliminary, unadjusted diagnostics on synthetic data. They do not establish a causal effect or demonstrate adequate overlap. Covariate timing, categorical balance, treatment-assignment assumptions, and balance after any justified adjustment remain to be reviewed. Do not automatically treat all candidate covariates as valid pre-treatment confounders.
+
+### Categorical Covariate Balance
+
+- Implemented `categorical_balance_diagnostics()` in `backend/app/causal/propensity.py`.
+- The function compares category proportions between each pair of treatment groups and reports the maximum absolute proportion difference for each categorical covariate.
+- Eight categorical covariates were explored in the enriched synthetic dataset.
+- The standalone diagnostic script generated 48 pairwise comparisons across the eight categorical covariates and four treatment groups.
+- The largest observed maximum absolute proportion difference was 0.0226 for `product_category`, comparing discount levels 0 and 20.
+- The generated output was saved as `categorical_balance_report.csv`.
+- Automated tests cover successful pairwise comparison generation and rejection of a missing treatment column or missing covariate.
+
+### Interpretation and limitations
+
+- Category-level proportion differences are descriptive diagnostics; they are not standardized mean differences and should not be judged using the numeric SMD threshold of 0.1.
+- These results are unadjusted and do not establish adequate overlap, causal validity, or a treatment effect.
+- Categorical and numeric balance should be interpreted alongside verified pre-treatment feature timing and the approved causal design.
+
+## 10. Initial Refutation Checks
+
+### Implemented checks
+
+The optional refutation module in `backend/app/causal/refutation.py`
+defines the following DoWhy checks:
+
+- `random_common_cause`: tests sensitivity to adding a random common cause.
+- `placebo_treatment_refuter`: tests a placebo-treatment scenario.
+- `data_subset_refuter`: examines sensitivity to using a subset of the data.
+
+### Execution status
+
+- DoWhy is an optional dependency and was not installed in the
+  environment during the initial implementation.
+- When DoWhy is unavailable, the checks are reported as `unsupported`;
+  they are not treated as executed.
+- When DoWhy is available, each check is attempted independently.
+- Successful execution is reported as `completed`, not `passed`.
+- Exceptions are recorded as `error`, including the relevant error message.
+- The overall result distinguishes successful execution from execution errors.
+
+### Interpretation and limitations
+
+These checks are diagnostic tools, not proof of causal validity.
+Their interpretation depends on the causal model, estimand, estimator,
+data-generating process, and configuration used.
+
+A completed check does not establish that an estimated effect is correct.
+A failed execution is not evidence that the causal hypothesis is false.
+The dataset is synthetic, treatment assignment is undocumented, and
+pre-treatment covariate timing still requires verification.
+
+No actual DoWhy refutation results are available until the dependency
+is installed in a compatible environment and the checks are executed
+against a valid identified estimand and estimate.

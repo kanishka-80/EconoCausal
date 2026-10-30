@@ -88,3 +88,161 @@ def test_both_groups_must_be_present():
             treatment_level=10,
             control_level=0,
         )
+def test_empty_data_rejected():
+    with pytest.raises(ValueError, match="non-empty"):
+        evaluate_uplift(
+            pd.DataFrame(),
+            [],
+            treatment_level=10,
+            control_level=0,
+        )
+
+
+def test_missing_required_column_rejected():
+    data = pd.DataFrame({
+        "discount_offered": [0, 10],
+    })
+
+    with pytest.raises(ValueError, match="Missing required columns"):
+        evaluate_uplift(
+            data,
+            [0.1, 0.9],
+            treatment_level=10,
+            control_level=0,
+        )
+
+
+def test_missing_treatment_or_outcome_rejected():
+    data = pd.DataFrame({
+        "discount_offered": [0, 10],
+        "purchased": [0, None],
+    })
+
+    with pytest.raises(ValueError, match="missing values"):
+        evaluate_uplift(
+            data,
+            [0.1, 0.9],
+            treatment_level=10,
+            control_level=0,
+        )
+
+
+def test_non_finite_scores_rejected(sample_data):
+    scores = [0.1, 0.9, float("nan"), 0.8, 0.7, 0.3]
+
+    with pytest.raises(ValueError, match="finite"):
+        evaluate_uplift(
+            sample_data,
+            scores,
+            treatment_level=10,
+            control_level=0,
+        )
+
+
+def test_no_matching_treatment_control_rows_rejected():
+    data = pd.DataFrame({
+        "discount_offered": [5, 20],
+        "purchased": [0, 1],
+    })
+
+    with pytest.raises(ValueError, match="No rows found"):
+        evaluate_uplift(
+            data,
+            [0.2, 0.8],
+            treatment_level=10,
+            control_level=0,
+        )
+
+
+def test_uplift_gain_matches_expected_calculation():
+    data = pd.DataFrame({
+        "discount_offered": [10, 0, 10, 0],
+        "purchased": [1, 0, 0, 1],
+    })
+    scores = [0.9, 0.8, 0.7, 0.6]
+
+    result = evaluate_uplift(
+        data,
+        scores,
+        treatment_level=10,
+        control_level=0,
+    )
+
+    # Two treatment and two control customers:
+    # gain = cumulative treated purchases - cumulative control purchases
+
+    expected_gain = [1.0, 1.0, 1.0, 0.0]
+    assert result["uplift_gain"].tolist() == expected_gain
+
+def test_customer_id_is_preserved_in_uplift_output():
+    data = pd.DataFrame({
+        "customer_id": [101, 102, 103, 104],
+        "discount_offered": [10, 0, 10, 0],
+        "purchased": [1, 0, 0, 1],
+    })
+    scores = [0.9, 0.8, 0.7, 0.6]
+
+    result = evaluate_uplift(
+        data,
+        scores,
+        treatment_level=10,
+        control_level=0,
+        id_col="customer_id",
+    )
+
+    assert "customer_id" in result.columns
+    assert result["customer_id"].tolist() == [101, 102, 103, 104]
+
+
+def test_customer_id_stays_aligned_after_ranking():
+    data = pd.DataFrame({
+        "customer_id": [101, 102, 103, 104],
+        "discount_offered": [10, 0, 10, 0],
+        "purchased": [1, 0, 0, 1],
+    })
+    scores = [0.3, 0.9, 0.8, 0.4]
+
+    result = evaluate_uplift(
+        data,
+        scores,
+        treatment_level=10,
+        control_level=0,
+        id_col="customer_id",
+    )
+
+    assert result["customer_id"].tolist() == [102, 103, 104, 101]
+    assert result["score"].tolist() == [0.9, 0.8, 0.4, 0.3]
+
+
+def test_customer_id_is_optional_for_backward_compatibility(sample_data):
+    scores = [0.1, 0.9, 0.2, 0.8, 0.7, 0.3]
+
+    result = evaluate_uplift(
+        sample_data,
+        scores,
+        treatment_level=10,
+        control_level=0,
+    )
+
+    assert "customer_id" not in result.columns
+    assert len(result) == 5
+
+def test_missing_customer_id_is_rejected():
+    data = pd.DataFrame({
+        "customer_id": [101, None, 103, 104],
+        "discount_offered": [10, 0, 10, 0],
+        "purchased": [1, 0, 0, 1],
+    })
+    scores = [0.9, 0.8, 0.7, 0.6]
+
+    with pytest.raises(
+        ValueError,
+        match="ID column must not contain missing values",
+    ):
+        evaluate_uplift(
+            data,
+            scores,
+            treatment_level=10,
+            control_level=0,
+            id_col="customer_id",
+        )

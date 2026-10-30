@@ -71,6 +71,40 @@ class CausalDAG:
     def has_edge(self, source: str, target: str) -> bool:
         return (source, target) in self.edges
 
+    def has_cycle(self) -> bool:
+        """Return True if the directed graph contains a cycle."""
+        adjacency = {node: [] for node in self.nodes}
+
+        for source, target in self.edges:
+            adjacency.setdefault(source, []).append(target)
+            adjacency.setdefault(target, [])
+
+        # 0 = unvisited, 1 = visiting, 2 = finished
+        state = {node: 0 for node in adjacency}
+
+        def visit(node: str) -> bool:
+            state[node] = 1
+
+            for neighbor in adjacency[node]:
+                if state[neighbor] == 1:
+                    return True
+
+                if state[neighbor] == 0 and visit(neighbor):
+                    return True
+
+            state[node] = 2
+            return False
+
+        for node in adjacency:
+            if state[node] == 0 and visit(node):
+                return True
+
+        return False
+
+    def is_acyclic(self) -> bool:
+        """Return True if the graph is a directed acyclic graph."""
+        return not self.has_cycle()
+
 
 def build_causal_dag() -> CausalDAG:
     """Build a provisional graph from candidate covariates."""
