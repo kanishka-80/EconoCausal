@@ -1,4 +1,3 @@
-
 import { useState } from 'react'
 import { runBudgetOptimization } from '../services/api'
 
@@ -12,6 +11,7 @@ export default function BudgetAllocationPanel({
   const [budget, setBudget] = useState('1000')
   const [discounts, setDiscounts] = useState('5,10,20')
   const [customerColumn, setCustomerColumn] = useState('')
+  const [objective, setObjective] = useState('MAXIMIZE_UPLIFT')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
@@ -24,11 +24,11 @@ export default function BudgetAllocationPanel({
     const discountValues = discounts
       .split(',')
       .map((value) => value.trim())
-      .filter((value) => value !== '')
+      .filter(Boolean)
       .map(Number)
 
     if (apiStatus !== 'Connected') {
-      setError('Backend connected nahi hai.')
+      setError('Backend connected nahi hai. Pehle backend start karo.')
       return
     }
 
@@ -44,12 +44,12 @@ export default function BudgetAllocationPanel({
           !Number.isFinite(value) || !ALLOWED_DISCOUNTS.includes(value),
       )
     ) {
-      setError('Sirf allowed discounts enter karo: 0, 5, 10, 20.')
+      setError('Allowed discounts sirf 0, 5, 10, 20 hain.')
       return
     }
 
     if (new Set(discountValues).size !== discountValues.length) {
-      setError('Har discount sirf ek baar enter karo.')
+      setError('Duplicate discount values allowed nahi hain.')
       return
     }
 
@@ -59,6 +59,11 @@ export default function BudgetAllocationPanel({
     }
 
     const columnIndex = headers.indexOf(customerColumn)
+    if (columnIndex < 0) {
+      setError('Selected customer column valid nahi hai.')
+      return
+    }
+
     const customerIds = [
       ...new Set(
         rows
@@ -67,7 +72,7 @@ export default function BudgetAllocationPanel({
       ),
     ]
 
-    if (columnIndex < 0 || customerIds.length === 0) {
+    if (customerIds.length === 0) {
       setError('Selected column mein customer IDs nahi mile.')
       return
     }
@@ -79,7 +84,7 @@ export default function BudgetAllocationPanel({
         budget: budgetValue,
         available_discounts: discountValues,
         customer_ids: customerIds,
-        objective: 'MAXIMIZE_REVENUE',
+        objective,
       })
 
       if (!response?.data) {
@@ -96,15 +101,17 @@ export default function BudgetAllocationPanel({
 
   const allocations = result?.allocations ?? []
   const summary = result?.summary
+  const isInfeasible = result?.status === 'INFEASIBLE_INSUFFICIENT_BUDGET'
 
   return (
     <div className="panel-content">
       <p>
-        Budget aur allowed discount options enter karke backend optimization
-        endpoint test karo. Mock output ko validated recommendation mat samajhna.
+        Budget aur discount constraints select karke backend optimization
+        run karo. Budget ki currency/unit backend confirmation ke bina
+        assume nahi ki gayi hai.
       </p>
 
-      <label htmlFor="marketing-budget">Marketing budget</label>
+      <label htmlFor="marketing-budget">Marketing budget amount</label>
       <input
         id="marketing-budget"
         type="number"
@@ -112,10 +119,11 @@ export default function BudgetAllocationPanel({
         step="any"
         value={budget}
         onChange={(event) => setBudget(event.target.value)}
+        disabled={loading}
       />
 
       <label htmlFor="discount-options">
-        Available discounts (comma-separated)
+        Available discounts (comma-separated percentages)
       </label>
       <input
         id="discount-options"
@@ -123,16 +131,27 @@ export default function BudgetAllocationPanel({
         onChange={(event) => setDiscounts(event.target.value)}
         placeholder="5,10,20"
         aria-describedby="discount-help"
+        disabled={loading}
       />
-      <small id="discount-help">
-        Allowed values: 0, 5, 10, 20
-      </small>
+      <small id="discount-help">Allowed values: 0, 5, 10, 20</small>
+
+      <label htmlFor="optimization-objective">Optimization objective</label>
+      <select
+        id="optimization-objective"
+        value={objective}
+        onChange={(event) => setObjective(event.target.value)}
+        disabled={loading}
+      >
+        <option value="MAXIMIZE_UPLIFT">Maximize incremental buyers</option>
+        <option value="MAXIMIZE_REVENUE">Maximize revenue</option>
+      </select>
 
       <label htmlFor="customer-id-column">Customer ID column</label>
       <select
         id="customer-id-column"
         value={customerColumn}
         onChange={(event) => setCustomerColumn(event.target.value)}
+        disabled={loading}
       >
         <option value="">Select customer ID column</option>
         {headers.map((column) => (
@@ -142,9 +161,16 @@ export default function BudgetAllocationPanel({
         ))}
       </select>
 
-      <button onClick={optimize} disabled={loading || rows.length === 0}>
+      <button
+        onClick={optimize}
+        disabled={loading || rows.length === 0}
+      >
         {loading ? 'Optimizing...' : 'Run budget optimization'}
       </button>
+
+      {rows.length === 0 && (
+        <p role="status">Optimization ke liye pehle CSV upload karo.</p>
+      )}
 
       {error && <p role="alert">{error}</p>}
 
@@ -154,7 +180,15 @@ export default function BudgetAllocationPanel({
 
           {result.is_mock && (
             <p role="status">
-              Mock/scaffold output — not a validated budget recommendation.
+              Mock/scaffold output — this is not a validated budget
+              recommendation.
+            </p>
+          )}
+
+          {isInfeasible && (
+            <p role="status">
+              Insufficient budget: backend could not find a feasible
+              allocation. No discounts were assigned.
             </p>
           )}
 
@@ -162,6 +196,9 @@ export default function BudgetAllocationPanel({
           <p>
             <strong>Optimization ID:</strong>{' '}
             {result.optimization_id ?? 'Not provided'}
+          </p>
+          <p>
+            <strong>Objective:</strong> {objective}
           </p>
           <p>
             <strong>Total budget:</strong>{' '}
@@ -200,25 +237,38 @@ export default function BudgetAllocationPanel({
 
           <h4>Customer allocation</h4>
           {allocations.length > 0 ? (
-            <ul>
-              {allocations.map((item, index) => (
-                <li key={`${item.customer_id}-${index}`}>
-                  {item.customer_id}: discount {item.assigned_discount},
-                  {' '}subsidy cost {item.subsidy_cost ?? 'Not provided'},
-                  {' '}expected uplift {item.expected_uplift ?? 'Not provided'}
-                </li>
-              ))}
-            </ul>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: 8 }}>Customer ID</th>
+                    <th style={{ textAlign: 'left', padding: 8 }}>Discount (%)</th>
+                    <th style={{ textAlign: 'left', padding: 8 }}>Subsidy cost</th>
+                    <th style={{ textAlign: 'left', padding: 8 }}>Expected uplift</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allocations.map((item, index) => (
+                    <tr key={`${item.customer_id}-${index}`}>
+                      <td style={{ padding: 8 }}>{item.customer_id ?? 'N/A'}</td>
+                      <td style={{ padding: 8 }}>{item.assigned_discount ?? 'N/A'}</td>
+                      <td style={{ padding: 8 }}>{item.subsidy_cost ?? 'N/A'}</td>
+                      <td style={{ padding: 8 }}>{item.expected_uplift ?? 'N/A'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <p>No allocation rows returned.</p>
+            <p>No allocation rows returned by the backend.</p>
           )}
 
           {result.limitations?.length > 0 && (
             <>
               <h4>Limitations</h4>
               <ul>
-                {result.limitations.map((limitation, index) => (
-                  <li key={index}>{limitation}</li>
+                {result.limitations.map((item, index) => (
+                  <li key={index}>{item}</li>
                 ))}
               </ul>
             </>
@@ -228,8 +278,8 @@ export default function BudgetAllocationPanel({
             <>
               <h4>Warnings</h4>
               <ul>
-                {result.warnings.map((warning, index) => (
-                  <li key={index}>{warning}</li>
+                {result.warnings.map((item, index) => (
+                  <li key={index}>{item}</li>
                 ))}
               </ul>
             </>
