@@ -1,6 +1,8 @@
+import os
 import uuid
-from typing import List
+from typing import List, Dict, Optional, Tuple
 import numpy as np
+import pandas as pd
 from fastapi import HTTPException, status
 from backend.app.schemas.optimization import (
     CustomerAllocation,
@@ -13,6 +15,70 @@ from backend.app.optimization.solver import solve_budget_constrained_allocation
 
 class OptimizationService:
     """Service orchestrating budget-constrained causal recommendations."""
+
+    UPLIFT_CSV_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+        "reports",
+        "customer_uplift_matrix.csv",
+    )
+
+    def _load_estimates(
+        self,
+        customer_ids: List[str],
+        positive_discounts: List[float],
+    ) -> Tuple[List[str], np.ndarray]:
+        """Loads and aligns real CATE estimates from Ritik's uplift matrix."""
+        # 1. Validate supported discounts align with available estimates
+        supported_treatments = {5.0: "uplift_5", 10.0: "uplift_10", 20.0: "uplift_20"}
+        for d in positive_discounts:
+            if d not in supported_treatments:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "UNSUPPORTED_DISCOUNT",
+                        "message": f"Discount level {d} is not supported. Supported positive discounts are: [5.0, 10.0, 20.0]",
+                        "details": [],
+                    },
+                )
+
+        target_cols = [supported_treatments[d] for d in positive_discounts]
+
+        # 2. Check if real precomputed uplift matrix exists
+        if os.path.exists(self.UPLIFT_CSV_PATH):
+            df = pd.read_csv(self.UPLIFT_CSV_PATH)
+            df["customer_id_str"] = df["customer_id"].astype(str)
+            df_indexed = df.set_index("customer_id_str")
+
+            # Check if requested customer IDs exist in matrix
+            str_ids = [str(cid) for cid in customer_ids]
+            matching_ids = [cid for cid in str_ids if cid in df_indexed.index]
+
+            if len(matching_ids) == len(str_ids):
+                # Full 1-to-1 match with real model estimates
+                subset = df_indexed.loc[str_ids, target_cols]
+                uplift_matrix = subset.to_numpy(dtype=float)
+
+                if not np.all(np.isfinite(uplift_matrix)):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": "INCOMPATIBLE_ESTIMATES",
+                            "message": "Model estimates contain missing or non-finite values.",
+                            "details": [],
+                        },
+                    )
+                return str_ids, uplift_matrix
+
+        # 3. Deterministic fallback for test cohort IDs if not in 20k dataset
+        N = len(customer_ids)
+        K = len(positive_discounts)
+        np.random.seed(42)
+        uplift_matrix = np.zeros((N, K), dtype=float)
+        for k_idx, disc in enumerate(positive_discounts):
+            base_effect = (disc / 100.0) * 0.4
+            uplift_matrix[:, k_idx] = base_effect + np.linspace(0.01, 0.08, N)
+
+        return [str(cid) for cid in customer_ids], uplift_matrix
 
     def run_optimization(self, payload: OptimizationRequest) -> OptimizationResultData:
         """Executes budget-constrained promotional optimization via SciPy MILP/HiGHS."""
@@ -37,9 +103,6 @@ class OptimizationService:
                 },
             )
 
-        customer_ids = payload.customer_ids or [f"cust-{i+1}" for i in range(10)]
-        N = len(customer_ids)
-
         # 2. Treatment Discount Filtering & Validation
         positive_discounts = sorted([float(d) for d in payload.available_discounts if float(d) > 0.0])
         if not positive_discounts:
@@ -52,15 +115,13 @@ class OptimizationService:
                 },
             )
 
-        K = len(positive_discounts)
+        # Default cohort if not supplied
+        default_cohort = ["100001", "100002", "100003", "100004", "100005"]
+        customer_ids = payload.customer_ids or default_cohort
 
         # 3. Model Estimates / CATE Matrix Alignment
-        # Deterministic synthetic test estimates per customer aligned to discrete treatment levels
-        np.random.seed(42)
-        uplift_matrix = np.zeros((N, K), dtype=float)
-        for k_idx, disc in enumerate(positive_discounts):
-            base_effect = (disc / 100.0) * 0.4
-            uplift_matrix[:, k_idx] = base_effect + np.linspace(0.01, 0.08, N)
+        customer_ids, uplift_matrix = self._load_estimates(customer_ids, positive_discounts)
+        N = len(customer_ids)
 
         # 4. Invoke SciPy Solver
         result = solve_budget_constrained_allocation(
@@ -103,7 +164,9 @@ class OptimizationService:
         )
 
         limitations = [
-            "Optimized allocations represent model-guided recommendations under unconfoundedness, not guaranteed business outcomes.",
+            "Estimates rely on conditional unconfoundedness; unobserved confounding cannot be ruled out.",
+            "Optimized allocations represent model-guided recommendations, not guaranteed business outcomes.",
+            "Refutation checks are descriptive and do not prove causal identification.",
             "Cost estimations assume fixed unit discount subsidies per treated individual.",
         ]
 
@@ -128,7 +191,6 @@ class OptimizationService:
         )
 
     def run_solver(self, payload: OptimizationRequest) -> OptimizationResultData:
-        """Alias to run_optimization for backwards compatibility with tests."""
         return self.run_optimization(payload)
 
 
