@@ -1,3 +1,4 @@
+
 import pandas as pd
 import pytest
 
@@ -60,6 +61,61 @@ def test_validate_data_missing_column():
         validate_data(df)
 
 
+def test_validate_data_invalid_treatment():
+    df = create_sample_data()
+    df.loc[0, "discount_offered"] = 15
+
+    with pytest.raises(
+        ValueError,
+        match="discount_offered must contain only"
+    ):
+        validate_data(df)
+
+
+def test_validate_data_missing_treatment():
+    df = create_sample_data()
+    df.loc[0, "discount_offered"] = None
+
+    with pytest.raises(
+        ValueError,
+        match="discount_offered contains missing values"
+    ):
+        validate_data(df)
+
+
+def test_validate_data_missing_outcome():
+    df = create_sample_data()
+    df.loc[0, "purchased"] = None
+
+    with pytest.raises(
+        ValueError,
+        match="purchased contains missing values"
+    ):
+        validate_data(df)
+
+
+def test_validate_data_invalid_outcome():
+    df = create_sample_data()
+    df.loc[0, "purchased"] = 2
+
+    with pytest.raises(
+        ValueError,
+        match="purchased must contain only 0 and 1"
+    ):
+        validate_data(df)
+
+
+def test_validate_data_empty_dataset():
+    df = create_sample_data()
+    df = df.iloc[0:0]
+
+    with pytest.raises(
+        ValueError,
+        match="Dataset is empty"
+    ):
+        validate_data(df)
+
+
 def test_clean_data():
     df = pd.DataFrame({
         " discount_offered ": [0, 10],
@@ -85,3 +141,22 @@ def test_prepare_features():
 
     assert data["X_train_scaled"].shape == data["X_train"].shape
     assert data["X_test_scaled"].shape == data["X_test"].shape
+
+
+def test_prepare_features_preserves_customer_id_alignment():
+    df = create_sample_data()
+    df["customer_id"] = [
+        f"CUST_{i}" for i in range(len(df))
+    ]
+
+    data = prepare_features(df)
+
+    assert data["customer_ids"].tolist() == (
+        df["customer_id"].tolist()
+    )
+
+    assert len(data["customer_ids"]) == len(
+        data["X_all_scaled"]
+    )
+
+    assert "customer_id" not in data["X_all"].columns

@@ -58,6 +58,7 @@ def prepare_features(df):
             f"Required columns missing: {missing_columns}"
         )
 
+    # Separate features, treatment and outcome.
     X = df[FEATURE_COLUMNS].copy()
     T = df["discount_offered"].copy()
     y = df["purchased"].copy()
@@ -71,21 +72,7 @@ def prepare_features(df):
             name="customer_id"
         )
 
-    # Encode categorical features.
-    categorical_columns = X.select_dtypes(
-        include=["object", "category", "str"]
-    ).columns
-
-    X = pd.get_dummies(
-        X,
-        columns=categorical_columns,
-        drop_first=True,
-        dtype=int
-    )
-
-    X_all = X.copy()
-
-    # Split training and testing data.
+    # Split data before encoding to prevent data leakage.
     train_indices, test_indices = train_test_split(
         range(len(X)),
         test_size=0.2,
@@ -93,8 +80,8 @@ def prepare_features(df):
         stratify=y
     )
 
-    X_train = X.iloc[train_indices]
-    X_test = X.iloc[test_indices]
+    X_train_raw = X.iloc[train_indices]
+    X_test_raw = X.iloc[test_indices]
 
     T_train = T.iloc[train_indices]
     T_test = T.iloc[test_indices]
@@ -102,7 +89,46 @@ def prepare_features(df):
     y_train = y.iloc[train_indices]
     y_test = y.iloc[test_indices]
 
-    # Scale features.
+    # Identify categorical columns using training data.
+    categorical_columns = X_train_raw.select_dtypes(
+        include=["object", "category", "str"]
+    ).columns.tolist()
+
+    # Fit categorical encoding on training data only.
+    X_train = pd.get_dummies(
+        X_train_raw,
+        columns=categorical_columns,
+        drop_first=True,
+        dtype=int
+    )
+
+    # Apply the same feature structure to test data.
+    X_test = pd.get_dummies(
+        X_test_raw,
+        columns=categorical_columns,
+        drop_first=True,
+        dtype=int
+    )
+
+    X_test = X_test.reindex(
+        columns=X_train.columns,
+        fill_value=0
+    )
+
+    # Prepare all customer features using training columns.
+    X_all = pd.get_dummies(
+        X,
+        columns=categorical_columns,
+        drop_first=True,
+        dtype=int
+    )
+
+    X_all = X_all.reindex(
+        columns=X_train.columns,
+        fill_value=0
+    )
+
+    # Fit scaler only on training data.
     scaler = StandardScaler()
 
     X_train_scaled = scaler.fit_transform(X_train)
@@ -126,6 +152,6 @@ def prepare_features(df):
         "X_all": X_all,
         "X_all_scaled": X_all_scaled,
         "customer_ids": customer_ids,
-        "feature_names": X.columns.tolist(),
+        "feature_names": X_train.columns.tolist(),
         "scaler": scaler
     }

@@ -44,9 +44,7 @@ def test_dml_model_training_and_effect_estimation():
     assert len(effects) == 10
     assert np.isfinite(effects).all()
 
-    average_effect = dml_model.average_effect(
-        X[:10], T0=0, T1=10
-    )
+    average_effect = dml_model.average_effect(X[:10], T0=0, T1=10)
 
     assert isinstance(average_effect, float)
     assert np.isfinite(average_effect)
@@ -111,3 +109,44 @@ def test_missing_treatment_values():
 
     with pytest.raises(ValueError, match="T contains missing or infinite values"):
         dml_model.fit(X, T, Y)
+
+
+def test_dml_model_supports_all_four_treatment_groups():
+    np.random.seed(42)
+
+    X = np.random.rand(400, 4)
+    T = np.tile([0, 5, 10, 20], 100)
+
+    probability = 1 / (
+        1 + np.exp(-(X[:, 0] + 0.02 * T - 0.5))
+    )
+    Y = np.random.binomial(1, probability)
+
+    dml_model = DMLEstimator()
+    dml_model.fit(X, T, Y)
+
+    assert dml_model.is_fitted is True
+
+    for discount in [5, 10, 20]:
+        effects = dml_model.estimate_effect(
+            X[:10],
+            T0=0,
+            T1=discount
+        )
+
+        assert len(effects) == 10
+        assert np.isfinite(effects).all()
+
+
+def test_estimate_with_unobserved_treatment_value():
+    X, T, Y = create_sample_data()
+
+    dml_model = DMLEstimator()
+    dml_model.fit(X, T, Y)
+
+    with pytest.raises(ValueError, match="observed treatment values"):
+        dml_model.estimate_effect(
+            X[:5],
+            T0=0,
+            T1=20
+        )
