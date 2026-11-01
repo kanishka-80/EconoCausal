@@ -91,7 +91,7 @@ def prepare_features(df):
 
     # Identify categorical columns using training data.
     categorical_columns = X_train_raw.select_dtypes(
-        include=["object", "category", "str"]
+        include=["object", "category"]
     ).columns.tolist()
 
     # Fit categorical encoding on training data only.
