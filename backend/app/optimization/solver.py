@@ -1,6 +1,8 @@
 """Core mathematical optimization solver using SciPy."""
 from dataclasses import dataclass, field
+from typing import List
 import numpy as np
+import scipy.sparse as sp
 from scipy.optimize import LinearConstraint, milp, linprog
 
 
@@ -8,133 +10,122 @@ from scipy.optimize import LinearConstraint, milp, linprog
 class SolverAllocationResult:
     status: str
     is_feasible: bool
-    solver_message: str
     total_spend: float
     total_expected_uplift: float
-    allocations: np.ndarray  # Shape (N, K): binary indicators or probabilities
-    assigned_discounts: np.ndarray  # Shape (N,): selected discount level per customer
-    unallocated_budget: float = 0.0
+    unallocated_budget: float
+    allocations: np.ndarray  # Shape (N, K) binary
+    assigned_discounts: np.ndarray  # Shape (N,)
+    solver_message: str = ""
 
 
 def solve_budget_constrained_allocation(
     uplift_matrix: np.ndarray,
-    discount_levels: list[float],
+    discount_levels: List[float],
     budget: float,
 ) -> SolverAllocationResult:
     """
-    Solves the budget-constrained multi-treatment allocation problem.
-
-    Args:
-        uplift_matrix: Shape (N, K), where N is number of customers,
-                       K is number of non-zero discount options.
-                       Each entry (i, k) is the predicted CATE (tau_hat).
-        discount_levels: List of K positive discount values (e.g. [5.0, 10.0, 20.0]).
-        budget: Total financial subsidy budget limit (float).
-
-    Returns:
-        SolverAllocationResult containing allocation matrix, spend, and feasibility.
+    Solves binary knapsack with mutual exclusivity:
+        max sum_{i, k} uplift_{i,k} * x_{i,k}
+        s.t. sum_{i, k} discount_k * x_{i,k} <= budget
+             sum_k x_{i,k} <= 1 for all i
+             x_{i,k} in {0, 1}
     """
-    # 1. Validation & Input Sanitization
-    if not isinstance(uplift_matrix, np.ndarray):
-        uplift_matrix = np.asarray(uplift_matrix, dtype=float)
-
+    # 1. Validate inputs
     if uplift_matrix.ndim != 2:
-        raise ValueError(f"uplift_matrix must be 2-dimensional (N, K), got shape {uplift_matrix.shape}")
-
+        raise ValueError("uplift_matrix must be a 2D numpy array.")
     N, K = uplift_matrix.shape
     if N == 0:
-        raise ValueError("uplift_matrix cannot have 0 customer rows")
-    if K == 0 or len(discount_levels) != K:
-        raise ValueError(f"discount_levels length ({len(discount_levels)}) must match columns of uplift_matrix ({K})")
-
+        raise ValueError("uplift_matrix has 0 customer rows.")
+    if len(discount_levels) != K:
+        raise ValueError(f"discount_levels length ({len(discount_levels)}) must match columns ({K}).")
     if not np.all(np.isfinite(uplift_matrix)):
-        raise ValueError("uplift_matrix contains non-finite (NaN or Inf) values")
+        raise ValueError("uplift_matrix contains non-finite (NaN/Inf) values.")
 
-    if budget < 0:
-        raise ValueError("budget must be non-negative")
+    discounts = np.array(discount_levels, dtype=float)
+    if np.any(discounts <= 0.0):
+        raise ValueError("All treatment discount levels must be strictly positive.")
 
-    discounts = np.asarray(discount_levels, dtype=float)
-    if np.any(discounts <= 0):
-        raise ValueError("All discount levels in optimization must be strictly positive (control 0% is implicit)")
-
-    # 2. Check for Insufficient Budget (Trivial Infeasibility)
+    # 2. Check for zero or insufficient budget
     min_possible_cost = np.min(discounts)
     if budget < min_possible_cost:
         return SolverAllocationResult(
             status="INFEASIBLE_INSUFFICIENT_BUDGET",
             is_feasible=False,
-            solver_message=f"Budget {budget:.2f} is insufficient to fund the minimum offer ({min_possible_cost:.2f}).",
             total_spend=0.0,
             total_expected_uplift=0.0,
+            unallocated_budget=float(budget),
             allocations=np.zeros((N, K), dtype=float),
             assigned_discounts=np.zeros(N, dtype=float),
-            unallocated_budget=float(budget),
+            solver_message="Available budget is smaller than the minimum positive discount.",
         )
 
-    # 3. Flatten variables: x has length N * K
-    # Variable index (i * K + k) corresponds to customer i getting discount k
-    c = -uplift_matrix.flatten()  # We minimize -uplift to maximize uplift
+    # 3. Objective formulation: SciPy milp minimizes, so c = -uplift
+    c = -uplift_matrix.flatten()
 
-    # 4. Formulate Budget Constraint: sum_{i, k} (discount_k * x_{i,k}) <= budget
-    budget_row = np.tile(discounts, N)
+    # 4. Formulate Budget Constraint as sparse row: sum_{i, k} (discount_k * x_{i,k}) <= budget
+    budget_row = sp.csr_matrix(np.tile(discounts, N).reshape(1, -1))
 
     # 5. Formulate Mutual Exclusivity: for each customer i, sum_k x_{i,k} <= 1
-    # We construct a sparse-like row matrix for each customer
-    customer_rows = np.zeros((N, N * K), dtype=float)
-    for i in range(N):
-        customer_rows[i, i * K : (i + 1) * K] = 1.0
+    # Constructed efficiently via sparse block diagonal / repeat
+    row_ind = np.repeat(np.arange(N), K)
+    col_ind = np.arange(N * K)
+    data = np.ones(N * K, dtype=float)
+    customer_rows = sp.csr_matrix((data, (row_ind, col_ind)), shape=(N, N * K))
 
     # Combine constraints: (1 budget row + N customer rows)
-    A = np.vstack([budget_row, customer_rows])
+    A_sparse = sp.vstack([budget_row, customer_rows], format="csc")
     lhs = np.zeros(1 + N)
     rhs = np.concatenate([[budget], np.ones(N)])
 
-    # Variable bounds: 0 <= x <= 1
-    integrality = np.ones(N * K)  # 1 indicates binary integer variable in scipy.optimize.milp
+    # Variable bounds: 0 <= x <= 1, binary integrality
+    integrality = np.ones(N * K)
 
     try:
-        constraints = LinearConstraint(A, lhs, rhs)
+        constraints = LinearConstraint(A_sparse, lhs, rhs)
         res = milp(c=c, integrality=integrality, constraints=constraints)
     except Exception:
-        # Fallback to linprog with integrality for compatibility
-        res = linprog(c=c, A_ub=A, b_ub=rhs, integrality=1, method="highs")
+        # Fallback to highs linear programming
+        res = linprog(c=c, A_ub=A_sparse, b_ub=rhs, integrality=1, method="highs")
 
-    if not res.success:
+    if not res.success or res.x is None:
         return SolverAllocationResult(
             status="SOLVER_FAILURE",
             is_feasible=False,
-            solver_message=f"Solver did not converge: {res.message}",
             total_spend=0.0,
             total_expected_uplift=0.0,
+            unallocated_budget=float(budget),
             allocations=np.zeros((N, K), dtype=float),
             assigned_discounts=np.zeros(N, dtype=float),
-            unallocated_budget=float(budget),
+            solver_message=str(getattr(res, "message", "Optimization terminated without feasible solution.")),
         )
 
-    # Reshape allocation solution back to (N, K)
-    allocation_matrix = np.clip(res.x.reshape((N, K)), 0.0, 1.0)
-    # Binary thresholding for integer safety
-    allocation_matrix = (allocation_matrix > 0.5).astype(float)
+    # 6. Extract solution
+    alloc_flat = np.where(res.x > 0.5, 1.0, 0.0)
+    allocations = alloc_flat.reshape((N, K))
 
-    # Calculate actual spend and uplift
-    customer_spend = allocation_matrix @ discounts
-    total_spend = float(np.sum(customer_spend))
-    total_expected_uplift = float(np.sum(allocation_matrix * uplift_matrix))
-
-    # Determine assigned discount per customer (0.0 if not treated)
+    # Compute assigned discounts
     assigned_discounts = np.zeros(N, dtype=float)
+    for k_idx, d in enumerate(discounts):
+        assigned_discounts[allocations[:, k_idx] == 1.0] = d
+
+    # Zero-out treatments for customers with non-positive uplift
     for i in range(N):
-        chosen_k = np.where(allocation_matrix[i] == 1.0)[0]
-        if len(chosen_k) > 0:
-            assigned_discounts[i] = discounts[chosen_k[0]]
+        chosen_k = np.where(allocations[i, :] == 1.0)[0]
+        if len(chosen_k) > 0 and uplift_matrix[i, chosen_k[0]] <= 0.0:
+            allocations[i, chosen_k[0]] = 0.0
+            assigned_discounts[i] = 0.0
+
+    total_spend = float(np.sum(allocations * discounts))
+    total_uplift = float(np.sum(allocations * uplift_matrix))
+    unallocated_budget = max(0.0, round(budget - total_spend, 2))
 
     return SolverAllocationResult(
         status="FEASIBLE",
         is_feasible=True,
-        solver_message="Optimization converged successfully via SciPy.",
         total_spend=round(total_spend, 2),
-        total_expected_uplift=round(total_expected_uplift, 4),
-        allocations=allocation_matrix,
+        total_expected_uplift=round(total_uplift, 4),
+        unallocated_budget=unallocated_budget,
+        allocations=allocations,
         assigned_discounts=assigned_discounts,
-        unallocated_budget=round(float(budget - total_spend), 2),
+        solver_message=str(getattr(res, "message", "Optimal solution found.")),
     )

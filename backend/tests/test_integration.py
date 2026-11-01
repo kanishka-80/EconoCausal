@@ -1,4 +1,5 @@
 import io
+import pytest
 from fastapi.testclient import TestClient
 from backend.app.main import app
 from backend.app.services.data_service import DataService
@@ -59,7 +60,7 @@ def test_full_pipeline_mock_workflow():
     assert causal_payload["status"] == "COMPLETED"
     assert causal_payload["is_mock"] is True
 
-    # Validate ATE & CATE details
+    # Validate ATE details
     assert causal_payload["ate_summary"]["average_treatment_effect"] is not None
     assert causal_payload["ate_summary"]["unit"] == "percentage_points"
     assert "confidence_interval_lower" in causal_payload["ate_summary"]
@@ -86,7 +87,7 @@ def test_full_pipeline_mock_workflow():
         "budget": 100.0,
         "available_discounts": [10.0, 20.0],
         "customer_ids": ["cust-1", "cust-2", "cust-3"],
-        "objective": "maximize_revenue",
+        "objective": "MAXIMIZE_UPLIFT",
     }
     opt_resp = client.post("/api/optimization/run", json=opt_req)
     assert opt_resp.status_code == 200
@@ -97,6 +98,7 @@ def test_full_pipeline_mock_workflow():
     assert opt_payload["is_mock"] is False
     assert opt_payload["total_spend"] <= 100.0
     assert len(opt_payload["allocation"]) == 3
+    assert len(opt_payload["limitations"]) > 0
 
     # 7. Safe cleanup and state invalidation
     reset_resp = client.post("/api/data/reset")
@@ -107,6 +109,77 @@ def test_full_pipeline_mock_workflow():
     post_reset_summary = client.get("/api/data/summary")
     assert post_reset_summary.status_code == 404
     assert post_reset_summary.json()["error"]["code"] == "NO_DATA_UPLOADED"
+
+
+def test_end_to_end_real_estimates_allocation_pipeline():
+    """Verify end-to-end handoff connecting causal cohort to real CATE matrix optimization."""
+    DataService.clear()
+
+    # Upload real-style cohort header
+    csv_data = (
+        b"customer_id,discount_offered,purchased,historical_spend,age\n"
+        b"100001,5.0,1,240.5,35\n"
+        b"100002,0.0,0,150.0,28\n"
+        b"100003,10.0,1,320.0,42\n"
+        b"100004,20.0,1,410.0,50\n"
+    )
+    files = {"file": ("cohort.csv", io.BytesIO(csv_data), "text/csv")}
+    upload_res = client.post("/api/data/upload", files=files)
+    assert upload_res.status_code == 200
+
+    # Trigger causal run
+    causal_res = client.post(
+        "/api/causal/analyze",
+        json={
+            "treatment_column": "discount_offered",
+            "outcome_column": "purchased",
+            "confounders": ["historical_spend", "age"],
+        },
+    )
+    assert causal_res.status_code == 200
+
+    # Request optimization on real customers present in customer_uplift_matrix.csv
+    opt_req = {
+        "budget": 35.0,
+        "available_discounts": [5.0, 10.0, 20.0],
+        "customer_ids": ["100001", "100002", "100003", "100004"],
+        "objective": "MAXIMIZE_UPLIFT",
+    }
+    opt_res = client.post("/api/optimization/run", json=opt_req)
+    assert opt_res.status_code == 200
+    data = opt_res.json()["data"]
+
+    # Independent feasibility and budget bound verification
+    assert data["status"] == "FEASIBLE"
+    assert data["is_mock"] is False
+    assert data["total_spend"] <= 35.0
+    assert data["unallocated_budget"] == pytest.approx(35.0 - data["total_spend"], abs=1e-2)
+    assert len(data["allocation"]) == 4
+
+    # Ensure mutual exclusivity: exactly 1 assigned discount per customer
+    assigned_sum = sum(alloc["cost"] for alloc in data["allocation"])
+    assert assigned_sum == pytest.approx(data["total_spend"], abs=1e-2)
+
+    # Cleanup
+    client.post("/api/data/reset")
+
+
+def test_end_to_end_infeasible_budget_handling():
+    """Verify workflow handles infeasible budget without raising 500 error."""
+    DataService.clear()
+
+    opt_req = {
+        "budget": 2.0,  # Below minimum positive discount (5.0)
+        "available_discounts": [5.0, 10.0, 20.0],
+        "customer_ids": ["100001", "100002"],
+    }
+    opt_res = client.post("/api/optimization/run", json=opt_req)
+    assert opt_res.status_code == 200
+    data = opt_res.json()["data"]
+    assert data["status"] == "INFEASIBLE_INSUFFICIENT_BUDGET"
+    assert data["total_spend"] == 0.0
+    assert data["allocated_customers_count"] == 0
+    assert all(alloc["assigned_discount"] == 0.0 for alloc in data["allocation"])
 
 
 def test_integration_sequence_after_reset_fails_predictably():
@@ -155,5 +228,3 @@ def test_cors_preflight_headers():
     )
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
-
-
