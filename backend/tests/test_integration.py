@@ -19,10 +19,10 @@ def test_full_pipeline_mock_workflow():
     # 2. Upload dataset CSV
     csv_data = (
         b"customer_id,discount_offered,purchased,income,age\n"
-        b"cust-1,10.0,1,55000.0,32\n"
-        b"cust-2,0.0,0,48000.0,45\n"
-        b"cust-3,20.0,1,72000.0,29\n"
-        b"cust-4,0.0,0,34000.0,52\n"
+        b"100001,10.0,1,55000.0,32\n"
+        b"100002,0.0,0,48000.0,45\n"
+        b"100003,20.0,1,72000.0,29\n"
+        b"100004,0.0,0,34000.0,52\n"
     )
     files = {"file": ("campaign_sample.csv", io.BytesIO(csv_data), "text/csv")}
     upload_resp = client.post("/api/data/upload", files=files)
@@ -86,7 +86,7 @@ def test_full_pipeline_mock_workflow():
     opt_req = {
         "budget": 100.0,
         "available_discounts": [10.0, 20.0],
-        "customer_ids": ["cust-1", "cust-2", "cust-3"],
+        "customer_ids": ["100001", "100002", "100003"],
         "objective": "MAXIMIZE_UPLIFT",
     }
     opt_resp = client.post("/api/optimization/run", json=opt_req)
@@ -228,3 +228,4 @@ def test_cors_preflight_headers():
     )
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+

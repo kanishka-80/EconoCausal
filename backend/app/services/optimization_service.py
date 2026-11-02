@@ -1,33 +1,31 @@
 import os
 import uuid
-from typing import List, Dict, Optional, Tuple
+import logging
+from typing import List, Tuple, Optional
 import numpy as np
 import pandas as pd
 from fastapi import HTTPException, status
+
 from backend.app.schemas.optimization import (
-    CustomerAllocation,
     OptimizationRequest,
     OptimizationResultData,
+    CustomerAllocation,
     OptimizationSummary,
 )
 from backend.app.optimization.solver import solve_budget_constrained_allocation
 
+logger = logging.getLogger("econocausal.services.optimization")
+
 
 class OptimizationService:
-    """Service orchestrating budget-constrained causal recommendations."""
-
-    UPLIFT_CSV_PATH = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-        "reports",
-        "customer_uplift_matrix.csv",
-    )
+    UPLIFT_CSV_PATH = "reports/customer_uplift_matrix.csv"
 
     def _load_estimates(
         self,
         customer_ids: List[str],
         positive_discounts: List[float],
     ) -> Tuple[List[str], np.ndarray]:
-        """Loads and aligns real CATE estimates from Ritik's uplift matrix."""
+        """Loads and aligns real CATE estimates strictly from Ritik's DML uplift matrix."""
         # 1. Validate supported discounts align with available estimates
         supported_treatments = {5.0: "uplift_5", 10.0: "uplift_10", 20.0: "uplift_20"}
         for d in positive_discounts:
@@ -43,42 +41,51 @@ class OptimizationService:
 
         target_cols = [supported_treatments[d] for d in positive_discounts]
 
-        # 2. Check if real precomputed uplift matrix exists
-        if os.path.exists(self.UPLIFT_CSV_PATH):
-            df = pd.read_csv(self.UPLIFT_CSV_PATH)
-            df["customer_id_str"] = df["customer_id"].astype(str)
-            df_indexed = df.set_index("customer_id_str")
+        # 2. Require real precomputed uplift matrix artifact
+        if not os.path.exists(self.UPLIFT_CSV_PATH):
+            logger.error(f"Required DML estimates file not found at {self.UPLIFT_CSV_PATH}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "ESTIMATES_FILE_NOT_FOUND",
+                    "message": f"Real DML estimates artifact '{self.UPLIFT_CSV_PATH}' is missing. Synthetic fallbacks are disabled.",
+                    "details": [],
+                },
+            )
 
-            # Check if requested customer IDs exist in matrix
-            str_ids = [str(cid) for cid in customer_ids]
-            matching_ids = [cid for cid in str_ids if cid in df_indexed.index]
+        df = pd.read_csv(self.UPLIFT_CSV_PATH)
+        df["customer_id_str"] = df["customer_id"].astype(str)
+        df_indexed = df.set_index("customer_id_str")
 
-            if len(matching_ids) == len(str_ids):
-                # Full 1-to-1 match with real model estimates
-                subset = df_indexed.loc[str_ids, target_cols]
-                uplift_matrix = subset.to_numpy(dtype=float)
+        # 3. Verify requested customer IDs strictly exist in the real DML index
+        str_ids = [str(cid) for cid in customer_ids]
+        missing_ids = [cid for cid in str_ids if cid not in df_indexed.index]
+        if missing_ids:
+            logger.error(f"Requested customer IDs not found in real DML matrix: {missing_ids[:10]}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "MISSING_CUSTOMER_ESTIMATES",
+                    "message": f"{len(missing_ids)} requested customer ID(s) do not exist in the DML uplift matrix.",
+                    "details": missing_ids[:10],
+                },
+            )
 
-                if not np.all(np.isfinite(uplift_matrix)):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail={
-                            "code": "INCOMPATIBLE_ESTIMATES",
-                            "message": "Model estimates contain missing or non-finite values.",
-                            "details": [],
-                        },
-                    )
-                return str_ids, uplift_matrix
+        # 4. Extract aligned slice for optimizer
+        subset = df_indexed.loc[str_ids, target_cols]
+        uplift_matrix = subset.to_numpy(dtype=float)
 
-        # 3. Deterministic fallback for test cohort IDs if not in 20k dataset
-        N = len(customer_ids)
-        K = len(positive_discounts)
-        np.random.seed(42)
-        uplift_matrix = np.zeros((N, K), dtype=float)
-        for k_idx, disc in enumerate(positive_discounts):
-            base_effect = (disc / 100.0) * 0.4
-            uplift_matrix[:, k_idx] = base_effect + np.linspace(0.01, 0.08, N)
+        if not np.all(np.isfinite(uplift_matrix)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INCOMPATIBLE_ESTIMATES",
+                    "message": "Model estimates contain missing or non-finite values.",
+                    "details": [],
+                },
+            )
 
-        return [str(cid) for cid in customer_ids], uplift_matrix
+        return str_ids, uplift_matrix
 
     def run_optimization(self, payload: OptimizationRequest) -> OptimizationResultData:
         """Executes budget-constrained promotional optimization via SciPy MILP/HiGHS."""
@@ -103,63 +110,76 @@ class OptimizationService:
                 },
             )
 
-        # 2. Treatment Discount Filtering & Validation
-        positive_discounts = sorted([float(d) for d in payload.available_discounts if float(d) > 0.0])
+        positive_discounts = [d for d in payload.available_discounts if d > 0.0]
         if not positive_discounts:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
-                    "code": "INVALID_DISCOUNTS",
-                    "message": "Available discounts must include at least one positive discount level.",
+                    "code": "NO_POSITIVE_DISCOUNTS",
+                    "message": "At least one positive treatment discount level must be specified.",
                     "details": [],
                 },
             )
 
-        # Default cohort if not supplied
-        default_cohort = ["100001", "100002", "100003", "100004", "100005"]
-        customer_ids = payload.customer_ids or default_cohort
+        # 2. Determine target customer cohort
+        if payload.customer_ids:
+            target_ids = payload.customer_ids
+        else:
+            if not os.path.exists(self.UPLIFT_CSV_PATH):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "ESTIMATES_FILE_NOT_FOUND",
+                        "message": f"DML estimates file '{self.UPLIFT_CSV_PATH}' is missing.",
+                        "details": [],
+                    },
+                )
+            df = pd.read_csv(self.UPLIFT_CSV_PATH, usecols=["customer_id"])
+            target_ids = df["customer_id"].astype(str).tolist()
 
-        # 3. Model Estimates / CATE Matrix Alignment
-        customer_ids, uplift_matrix = self._load_estimates(customer_ids, positive_discounts)
-        N = len(customer_ids)
+        # 3. Load aligned estimates strictly from DML output
+        candidate_ids, uplift_matrix = self._load_estimates(target_ids, positive_discounts)
 
         # 4. Invoke SciPy Solver
-        result = solve_budget_constrained_allocation(
+        solver_res = solve_budget_constrained_allocation(
             uplift_matrix=uplift_matrix,
             discount_levels=positive_discounts,
-            budget=float(payload.budget),
+            budget=payload.budget,
         )
 
-        # 5. Format Allocations and Summary Breakdown
+        # 5. Format Allocations
         allocations: List[CustomerAllocation] = []
-        discount_breakdown = {str(d): 0 for d in [0.0] + positive_discounts}
+        discount_breakdown = {"0.0": 0}
+        for d in positive_discounts:
+            discount_breakdown[str(d)] = 0
 
-        for i, cust_id in enumerate(customer_ids):
-            assigned_d = float(result.assigned_discounts[i])
-            discount_breakdown[str(assigned_d)] = discount_breakdown.get(str(assigned_d), 0) + 1
+        treated_count = 0
+        for i, cid in enumerate(candidate_ids):
+            assigned_d = float(solver_res.assigned_discounts[i])
+            chosen_k = np.where(solver_res.allocations[i, :] == 1.0)[0]
+            expected_u = float(uplift_matrix[i, chosen_k[0]]) if len(chosen_k) > 0 else 0.0
 
             if assigned_d > 0.0:
-                k_idx = positive_discounts.index(assigned_d)
-                uplift_val = round(float(uplift_matrix[i, k_idx]), 4)
+                treated_count += 1
+                cost = assigned_d
             else:
-                uplift_val = 0.0
+                cost = 0.0
+
+            discount_breakdown[str(assigned_d)] = discount_breakdown.get(str(assigned_d), 0) + 1
 
             allocations.append(
                 CustomerAllocation(
-                    customer_id=cust_id,
+                    customer_id=cid,
                     assigned_discount=assigned_d,
-                    cost=assigned_d,
-                    expected_uplift=uplift_val,
+                    cost=cost,
+                    expected_uplift=round(expected_u, 4),
                 )
             )
 
-        treated_count = sum(count for d, count in discount_breakdown.items() if float(d) > 0.0)
-        control_count = discount_breakdown.get("0.0", 0)
-
         summary = OptimizationSummary(
-            total_customers=N,
+            total_customers=len(candidate_ids),
             treated_customers=treated_count,
-            control_customers=control_count,
+            control_customers=len(candidate_ids) - treated_count,
             discount_breakdown=discount_breakdown,
         )
 
@@ -170,28 +190,23 @@ class OptimizationService:
             "Cost estimations assume fixed unit discount subsidies per treated individual.",
         ]
 
-        opt_id = f"opt-{uuid.uuid4().hex[:8]}"
-
         return OptimizationResultData(
-            optimization_id=opt_id,
-            status=result.status,
+            optimization_id=f"opt-{uuid.uuid4().hex[:8]}",
+            status=solver_res.status,
             is_mock=False,
-            solver_message=result.solver_message,
-            total_budget=round(float(payload.budget), 2),
-            total_spend=result.total_spend,
-            unused_budget=result.unallocated_budget,
-            unallocated_budget=result.unallocated_budget,
-            objective_value=result.total_expected_uplift,
-            total_expected_uplift=result.total_expected_uplift,
+            solver_message=solver_res.solver_message,
+            total_budget=round(payload.budget, 2),
+            total_spend=round(solver_res.total_spend, 2),
+            unused_budget=round(solver_res.unallocated_budget, 2),
+            unallocated_budget=round(solver_res.unallocated_budget, 2),
+            objective_value=round(solver_res.total_expected_uplift, 4),
+            total_expected_uplift=round(solver_res.total_expected_uplift, 4),
             allocated_customers_count=treated_count,
             allocation=allocations,
             allocations=allocations,
             summary=summary,
             limitations=limitations,
         )
-
-    def run_solver(self, payload: OptimizationRequest) -> OptimizationResultData:
-        return self.run_optimization(payload)
 
 
 optimization_service = OptimizationService()
