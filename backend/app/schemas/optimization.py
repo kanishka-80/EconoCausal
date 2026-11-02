@@ -1,5 +1,6 @@
+import math
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class OptimizationRequest(BaseModel):
@@ -7,6 +8,47 @@ class OptimizationRequest(BaseModel):
     available_discounts: List[float] = Field(min_length=1, description="List of supported discount offer values")
     customer_ids: Optional[List[str]] = Field(default=None, description="Optional list of target customer identifiers")
     objective: Optional[str] = Field(default="MAXIMIZE_UPLIFT", description="Optimization objective (default: MAXIMIZE_UPLIFT)")
+
+    @field_validator("budget")
+    @classmethod
+    def validate_budget_finite(cls, v: float) -> float:
+        if not math.isfinite(v) or math.isnan(v):
+            raise ValueError("Budget must be a finite, non-NaN positive number.")
+        if v <= 0:
+            raise ValueError("Budget must be strictly positive.")
+        return float(round(v, 2))
+
+    @field_validator("available_discounts")
+    @classmethod
+    def validate_available_discounts(cls, v: List[float]) -> List[float]:
+        if not v:
+            raise ValueError("available_discounts cannot be empty.")
+        clean_discounts = []
+        for d in v:
+            if not math.isfinite(d) or math.isnan(d):
+                raise ValueError(f"Discount value {d} must be a finite number.")
+            if d <= 0:
+                raise ValueError(f"Treatment discount level {d} must be strictly positive.")
+            clean_discounts.append(float(d))
+        return clean_discounts
+
+    @field_validator("customer_ids")
+    @classmethod
+    def validate_customer_ids(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is None:
+            return None
+        if len(v) == 0:
+            raise ValueError("customer_ids cannot be an empty list when provided.")
+        seen = set()
+        clean_ids = []
+        for cid in v:
+            clean_id = str(cid).strip()
+            if not clean_id:
+                raise ValueError("customer_ids cannot contain empty or blank strings.")
+            if clean_id not in seen:
+                seen.add(clean_id)
+                clean_ids.append(clean_id)
+        return clean_ids
 
 
 class CustomerAllocation(BaseModel):
@@ -38,4 +80,4 @@ class OptimizationResultData(BaseModel):
     allocation: List[CustomerAllocation] = Field(description="Customer-level allocation recommendations")
     allocations: List[CustomerAllocation] = Field(default_factory=list, description="Customer allocations (contract alias)")
     summary: Optional[OptimizationSummary] = Field(default=None, description="Cohort treatment breakdown summary")
-    limitations: List[str] = Field(default_factory=list, description="Diagnostic and causal limitations")
+    limitations: List[str] = Field(default_factory=list, description="Causal and optimization evaluation caveats")
