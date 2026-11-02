@@ -41,23 +41,30 @@ class OptimizationService:
 
         target_cols = [supported_treatments[d] for d in positive_discounts]
 
-        # 2. Require real precomputed uplift matrix artifact
+        # 2. Check missing CSV artifact -> returns MISSING_CUSTOMER_ESTIMATES
         if not os.path.exists(self.UPLIFT_CSV_PATH):
             logger.error(f"Required DML estimates file not found at {self.UPLIFT_CSV_PATH}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
-                    "code": "ESTIMATES_FILE_NOT_FOUND",
-                    "message": f"Real DML estimates artifact '{self.UPLIFT_CSV_PATH}' is missing. Synthetic fallbacks are disabled.",
+                    "code": "MISSING_CUSTOMER_ESTIMATES",
+                    "message": f"DML estimates artifact '{self.UPLIFT_CSV_PATH}' is missing. Synthetic fallbacks are disabled.",
                     "details": [],
                 },
             )
 
         df = pd.read_csv(self.UPLIFT_CSV_PATH)
         df["customer_id_str"] = df["customer_id"].astype(str)
+
+        # 3. Detect duplicate customer IDs in CSV
+        if df["customer_id_str"].duplicated().any():
+            duplicate_ids = df[df["customer_id_str"].duplicated()]["customer_id_str"].tolist()
+            logger.warning(f"Duplicate customer IDs detected in CSV: {duplicate_ids[:10]}. Deduplicating by keeping first instance.")
+            df = df.drop_duplicates(subset=["customer_id_str"], keep="first")
+
         df_indexed = df.set_index("customer_id_str")
 
-        # 3. Verify requested customer IDs strictly exist in the real DML index
+        # 4. Check requested customer IDs -> returns ESTIMATES_NOT_FOUND if missing
         str_ids = [str(cid) for cid in customer_ids]
         missing_ids = [cid for cid in str_ids if cid not in df_indexed.index]
         if missing_ids:
@@ -65,13 +72,13 @@ class OptimizationService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
-                    "code": "MISSING_CUSTOMER_ESTIMATES",
+                    "code": "ESTIMATES_NOT_FOUND",
                     "message": f"{len(missing_ids)} requested customer ID(s) do not exist in the DML uplift matrix.",
                     "details": missing_ids[:10],
                 },
             )
 
-        # 4. Extract aligned slice for optimizer
+        # 5. Extract aligned slice for optimizer
         subset = df_indexed.loc[str_ids, target_cols]
         uplift_matrix = subset.to_numpy(dtype=float)
 
@@ -129,7 +136,7 @@ class OptimizationService:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail={
-                        "code": "ESTIMATES_FILE_NOT_FOUND",
+                        "code": "MISSING_CUSTOMER_ESTIMATES",
                         "message": f"DML estimates file '{self.UPLIFT_CSV_PATH}' is missing.",
                         "details": [],
                     },

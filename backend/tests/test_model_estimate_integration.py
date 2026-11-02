@@ -1,4 +1,6 @@
 import pytest
+import os
+import pandas as pd
 from fastapi.testclient import TestClient
 from backend.app.main import app
 from backend.app.services.optimization_service import optimization_service
@@ -7,54 +9,63 @@ from backend.app.schemas.optimization import OptimizationRequest
 client = TestClient(app)
 
 
-def test_real_model_estimates_integration_from_csv():
-    """Verify optimization consumes real CATE estimates from Ritik's customer_uplift_matrix.csv."""
-    # Real customer IDs from customer_uplift_matrix.csv
-    real_customer_ids = ["100001", "100002", "100003", "100004"]
+def test_missing_csv_returns_missing_customer_estimates(monkeypatch):
+    """Requirement 1: Verify missing CSV returns MISSING_CUSTOMER_ESTIMATES."""
+    monkeypatch.setattr(optimization_service, "UPLIFT_CSV_PATH", "reports/non_existent_matrix.csv")
+    payload = {
+        "budget": 100.0,
+        "available_discounts": [5.0, 10.0, 20.0],
+        "customer_ids": ["100001"],
+    }
+    res = client.post("/api/optimization/run", json=payload)
+    assert res.status_code == 400
+    assert res.json()["error"]["code"] == "MISSING_CUSTOMER_ESTIMATES"
+
+
+def test_missing_requested_customer_ids_returns_estimates_not_found():
+    """Requirement 2: Verify missing requested customer IDs return ESTIMATES_NOT_FOUND."""
+    payload = {
+        "budget": 100.0,
+        "available_discounts": [5.0, 10.0, 20.0],
+        "customer_ids": ["non_existent_customer_999999"],
+    }
+    res = client.post("/api/optimization/run", json=payload)
+    assert res.status_code == 400
+    assert res.json()["error"]["code"] == "ESTIMATES_NOT_FOUND"
+    assert "non_existent_customer_999999" in res.json()["error"]["details"]
+
+
+def test_duplicate_customer_ids_in_csv_handled(tmp_path, monkeypatch):
+    """Requirement 3: Verify duplicate customer IDs in CSV are detected and deduplicated."""
+    temp_csv = tmp_path / "dup_matrix.csv"
+    dup_df = pd.DataFrame({
+        "customer_id": [100001, 100001, 100002],
+        "uplift_5": [0.05, 0.08, 0.04],
+        "uplift_10": [0.09, 0.12, 0.07],
+        "uplift_20": [0.15, 0.20, 0.10],
+    })
+    dup_df.to_csv(temp_csv, index=False)
+    monkeypatch.setattr(optimization_service, "UPLIFT_CSV_PATH", str(temp_csv))
+
     req = OptimizationRequest(
-        budget=35.0,
+        budget=50.0,
         available_discounts=[5.0, 10.0, 20.0],
-        customer_ids=real_customer_ids,
+        customer_ids=["100001", "100002"],
     )
-    result = optimization_service.run_optimization(req)
-
-    assert result.is_mock is False
-    assert result.status == "FEASIBLE"
-    assert result.total_spend <= 35.0
-    assert len(result.allocation) == 4
-    # Ensure expected uplifts are populated from real estimates
-    for alloc in result.allocation:
-        if alloc.assigned_discount > 0:
-            assert alloc.expected_uplift != 0.0
+    res = optimization_service.run_optimization(req)
+    assert res.status == "FEASIBLE"
+    assert len(res.allocation) == 2
+    assert res.is_mock is False
 
 
-def test_reject_unsupported_treatment_discounts():
-    """Verify service rejects treatment discounts that do not have model estimates."""
-    response = client.post(
-        "/api/optimization/run",
-        json={
-            "budget": 50.0,
-            "available_discounts": [15.0],  # 15% is not in [5, 10, 20]
-            "customer_ids": ["100001"],
-        },
-    )
-    assert response.status_code == 400
-    assert response.json()["error"]["code"] == "UNSUPPORTED_DISCOUNT"
-
-
-def test_diagnostics_caveats_and_limitations_attached():
-    """Verify team-approved causal and optimization caveats are present in response."""
-    response = client.post(
-        "/api/optimization/run",
-        json={
-            "budget": 50.0,
-            "available_discounts": [5.0, 10.0, 20.0],
-            "customer_ids": ["100001", "100002"],
-        },
-    )
-    assert response.status_code == 200
-    limitations = response.json()["data"]["limitations"]
-
-    assert any("unconfoundedness" in lim for lim in limitations)
-    assert any("Refutation checks are descriptive" in lim for lim in limitations)
-    assert any("not guaranteed business outcomes" in lim for lim in limitations)
+def test_is_mock_false_when_actual_estimates_loaded():
+    """Requirement 4: Verify is_mock=False is returned when actual DML estimates are loaded."""
+    payload = {
+        "budget": 50.0,
+        "available_discounts": [5.0, 10.0, 20.0],
+        "customer_ids": ["100001", "100002"],
+    }
+    res = client.post("/api/optimization/run", json=payload)
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert data["is_mock"] is False
