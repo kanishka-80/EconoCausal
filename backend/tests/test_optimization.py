@@ -193,9 +193,9 @@ def test_optimization_service_solver_execution():
     req = OptimizationRequest(
         budget=100.0,
         available_discounts=[5.0, 10.0, 20.0],
-        customer_ids=["c1", "c2", "c3", "c4", "c5"],
+        customer_ids=["100001", "100002", "100003", "100004", "100005"],
     )
-    res = optimization_service.run_solver(req)
+    res = optimization_service.run_optimization(req)
 
     assert res.is_mock is False
     assert res.status == "FEASIBLE"
@@ -212,3 +212,4 @@ def test_optimization_service_rejects_negative_budget():
             available_discounts=[10.0],
             customer_ids=["c1"],
         )
+
