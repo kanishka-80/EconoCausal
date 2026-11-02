@@ -1,12 +1,33 @@
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional, Union
+from pydantic import BaseModel, Field, field_validator
 
 
 class CausalAnalysisRequest(BaseModel):
     treatment_column: str = Field(description="Name of the treatment/discount column")
     outcome_column: str = Field(description="Name of the outcome/target column")
     confounders: List[str] = Field(min_length=1, description="List of pre-treatment covariates to control for")
-    treatment_levels: Optional[List[float]] = Field(default=None, description="Supported discrete discount levels (pending ML freeze)")
+    treatment_levels: Optional[List[float]] = Field(default=None, description="Supported discrete discount levels")
+
+    @field_validator("treatment_column", "outcome_column")
+    @classmethod
+    def validate_non_empty_str(cls, v: str) -> str:
+        clean = v.strip()
+        if not clean:
+            raise ValueError("Column name cannot be empty or whitespace.")
+        return clean
+
+    @field_validator("confounders")
+    @classmethod
+    def validate_confounders_list(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError("Confounders list cannot be empty.")
+        clean_list = []
+        for c in v:
+            clean_col = c.strip()
+            if not clean_col:
+                raise ValueError("Confounder column names cannot be empty or whitespace.")
+            clean_list.append(clean_col)
+        return clean_list
 
 
 class TreatmentEffectSummary(BaseModel):
@@ -33,24 +54,25 @@ class AnalysisMetadata(BaseModel):
 
 class DiagnosticCheckResult(BaseModel):
     check_name: str = Field(description="Identifier of the refutation or diagnostic check")
-    status: str = Field(default="PENDING_INTEGRATION", description="Status: PASSED, FAILED, PENDING_INTEGRATION, SKIPPED")
-    p_value: Optional[float] = Field(default=None, description="Significance p-value if applicable and computed")
-    details: Optional[str] = Field(default=None, description="Description or caveat regarding check execution")
+    status: str = Field(default="PENDING_INTEGRATION", description="Status of check")
+    passed: Optional[bool] = Field(default=None, description="Whether diagnostic check passed")
+    message: Optional[str] = Field(default=None, description="Summary interpretation of check outcome")
+    p_value: Optional[float] = Field(default=None, description="Diagnostic p-value if applicable")
+    details: Optional[Union[str, Dict[str, Any]]] = Field(default=None, description="Test details, message, or parameters")
 
 
 class DiagnosticsSummary(BaseModel):
-    refutation_status: str = Field(default="PENDING_INTEGRATION", description="Status of DoWhy refutation checks")
-    checks: List[DiagnosticCheckResult] = Field(default_factory=list, description="Granular refutation check results")
-    open_decisions: Optional[str] = Field(default=None, description="Pending team modeling decisions")
-    warnings: List[str] = Field(default_factory=list, description="Statistical or model caveats and warnings")
+    refutation_status: str = Field(description="Overall health status of causal assumptions")
+    checks: List[DiagnosticCheckResult] = Field(default_factory=list, description="Detailed diagnostic outcomes")
+    warnings: List[str] = Field(default_factory=list, description="Diagnostic warning messages")
+    open_decisions: Optional[str] = Field(default=None, description="Open methodological decisions")
 
 
 class CausalAnalysisData(BaseModel):
-    run_id: str = Field(description="Unique identifier for the causal analysis run")
-    status: str = Field(default="COMPLETED", description="Analysis status: PENDING, COMPLETED, FAILED, NOT_FOUND")
-    estimator_used: str = Field(default="LinearDML (Baseline Orchestrator)", description="EconML estimator name")
-    is_mock: bool = Field(default=True, description="Explicit flag indicating mock/placeholder calculation")
-    ate_summary: TreatmentEffectSummary = Field(description="Primary population average treatment effect estimates")
-    segment_effects: List[SegmentEffect] = Field(default_factory=list, description="Heterogeneous treatment effects by customer segments (CATE)")
-    metadata: AnalysisMetadata = Field(description="Execution and dataset metadata")
-    diagnostics: DiagnosticsSummary = Field(description="Refutation check outputs and diagnostic caveats")
+    run_id: str = Field(description="Unique identifier for causal inference run")
+    status: str = Field(description="Run status: PENDING, RUNNING, COMPLETED, FAILED")
+    is_mock: bool = Field(default=True, description="Flag indicating mock/scaffold result vs live DML model")
+    ate_summary: TreatmentEffectSummary = Field(description="Global average treatment effect")
+    segment_effects: List[SegmentEffect] = Field(default_factory=list, description="Heterogeneous treatment effects by customer segment")
+    metadata: AnalysisMetadata = Field(description="Dataset and run execution parameters")
+    diagnostics: DiagnosticsSummary = Field(description="Refutation tests and assumption validation")
