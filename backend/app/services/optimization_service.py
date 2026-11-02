@@ -1,7 +1,8 @@
 import os
 import uuid
 import logging
-from typing import List, Tuple, Optional
+from pathlib import Path
+from typing import List, Tuple, Optional, Union
 import numpy as np
 import pandas as pd
 from fastapi import HTTPException, status
@@ -16,9 +17,18 @@ from backend.app.optimization.solver import solve_budget_constrained_allocation
 
 logger = logging.getLogger("econocausal.services.optimization")
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
 
 class OptimizationService:
-    UPLIFT_CSV_PATH = "reports/customer_uplift_matrix.csv"
+    UPLIFT_CSV_PATH: Union[str, Path] = REPO_ROOT / "reports" / "customer_uplift_matrix.csv"
+
+    def _resolve_csv_path(self) -> Path:
+        """Resolves the uplift CSV path dynamically whether set as str or Path."""
+        p = Path(self.UPLIFT_CSV_PATH)
+        if not p.is_absolute():
+            return REPO_ROOT / p
+        return p
 
     def _load_estimates(
         self,
@@ -40,26 +50,29 @@ class OptimizationService:
                 )
 
         target_cols = [supported_treatments[d] for d in positive_discounts]
+        csv_path = self._resolve_csv_path()
 
         # 2. Check missing CSV artifact -> returns MISSING_CUSTOMER_ESTIMATES
-        if not os.path.exists(self.UPLIFT_CSV_PATH):
-            logger.error(f"Required DML estimates file not found at {self.UPLIFT_CSV_PATH}")
+        if not csv_path.exists():
+            logger.error(f"Required DML estimates file not found at {csv_path}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "code": "MISSING_CUSTOMER_ESTIMATES",
-                    "message": f"DML estimates artifact '{self.UPLIFT_CSV_PATH}' is missing. Synthetic fallbacks are disabled.",
+                    "message": f"DML estimates artifact '{csv_path}' is missing. Synthetic fallbacks are disabled.",
                     "details": [],
                 },
             )
 
-        df = pd.read_csv(self.UPLIFT_CSV_PATH)
+        df = pd.read_csv(csv_path)
         df["customer_id_str"] = df["customer_id"].astype(str)
 
-        # 3. Detect duplicate customer IDs in CSV
+        # 3. Detect and handle duplicate customer IDs in CSV explicitly
         if df["customer_id_str"].duplicated().any():
             duplicate_ids = df[df["customer_id_str"].duplicated()]["customer_id_str"].tolist()
-            logger.warning(f"Duplicate customer IDs detected in CSV: {duplicate_ids[:10]}. Deduplicating by keeping first instance.")
+            logger.warning(
+                f"Duplicate customer IDs detected in CSV: {duplicate_ids[:10]}. Deduplicating by keeping first instance."
+            )
             df = df.drop_duplicates(subset=["customer_id_str"], keep="first")
 
         df_indexed = df.set_index("customer_id_str")
@@ -128,20 +141,22 @@ class OptimizationService:
                 },
             )
 
+        csv_path = self._resolve_csv_path()
+
         # 2. Determine target customer cohort
         if payload.customer_ids:
             target_ids = payload.customer_ids
         else:
-            if not os.path.exists(self.UPLIFT_CSV_PATH):
+            if not csv_path.exists():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail={
                         "code": "MISSING_CUSTOMER_ESTIMATES",
-                        "message": f"DML estimates file '{self.UPLIFT_CSV_PATH}' is missing.",
+                        "message": f"DML estimates file '{csv_path}' is missing.",
                         "details": [],
                     },
                 )
-            df = pd.read_csv(self.UPLIFT_CSV_PATH, usecols=["customer_id"])
+            df = pd.read_csv(csv_path, usecols=["customer_id"])
             target_ids = df["customer_id"].astype(str).tolist()
 
         # 3. Load aligned estimates strictly from DML output
