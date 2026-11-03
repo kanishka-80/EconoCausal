@@ -131,7 +131,7 @@ export default function CausalAnalysisPanel({ headers = [], rows = [], apiStatus
 
           <p><strong>Run ID:</strong> {result.run_id}</p>
           <p><strong>Status:</strong> {result.status}</p>
-          <p><strong>Estimator:</strong> {result.estimator_used}</p>
+          <p><strong>Estimator:</strong> {result.estimator_used || 'Not provided by backend schema'}</p>
 
           <p>
             <strong>Average treatment effect:</strong>{' '}

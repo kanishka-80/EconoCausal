@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { runBudgetOptimization } from '../services/api'
 
-const ALLOWED_DISCOUNTS = [0, 5, 10, 20]
+const ALLOWED_DISCOUNTS = [5, 10, 20]
 
 const formatValue = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -156,7 +156,7 @@ export default function BudgetAllocationPanel({
         onChange={(event) => setDiscounts(event.target.value)}
         placeholder="5,10,20"
       />
-      <small>Allowed values: 0, 5, 10, 20</small>
+      <small>Allowed values: 5, 10, 20</small>
 
       <label htmlFor="optimization-objective">
         Optimization Objective
