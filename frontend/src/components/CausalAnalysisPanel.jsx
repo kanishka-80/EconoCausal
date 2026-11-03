@@ -125,7 +125,7 @@ export default function CausalAnalysisPanel({ headers = [], rows = [], apiStatus
 
           {result.is_mock && (
             <p role="status">
-              Demo/mock result — not validated causal evidence.
+              Demo/baseline output only — not validated causal evidence. EconML DML integration and diagnostics validation are still pending.
             </p>
           )}
 

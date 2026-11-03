@@ -1,8 +1,8 @@
-
 import { useState } from 'react'
 import { runBudgetOptimization } from '../services/api'
 
 const ALLOWED_DISCOUNTS = [5, 10, 20]
+const DISPLAY_LIMIT = 100
 
 const formatValue = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -16,14 +16,9 @@ const formatValue = (value) => {
   return String(value)
 }
 
-export default function BudgetAllocationPanel({
-  headers = [],
-  rows = [],
-  apiStatus,
-}) {
+export default function BudgetAllocationPanel({ apiStatus }) {
   const [budget, setBudget] = useState('1000')
   const [discounts, setDiscounts] = useState('5,10,20')
-  const [customerColumn, setCustomerColumn] = useState('')
   const [objective, setObjective] = useState('MAXIMIZE_UPLIFT')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -60,37 +55,12 @@ export default function BudgetAllocationPanel({
           !ALLOWED_DISCOUNTS.includes(value),
       )
     ) {
-      setError('Allowed discounts sirf 0, 5, 10, 20 hain.')
+      setError('Allowed discounts sirf 5, 10, 20 hain.')
       return
     }
 
     if (new Set(discountValues).size !== discountValues.length) {
       setError('Duplicate discount values allowed nahi hain.')
-      return
-    }
-
-    if (!customerColumn) {
-      setError('Customer ID column select karo.')
-      return
-    }
-
-    const columnIndex = headers.indexOf(customerColumn)
-
-    if (columnIndex < 0) {
-      setError('Selected customer column valid nahi hai.')
-      return
-    }
-
-    const customerIds = [
-      ...new Set(
-        rows
-          .map((row) => String(row[columnIndex] ?? '').trim())
-          .filter(Boolean),
-      ),
-    ]
-
-    if (customerIds.length === 0) {
-      setError('Selected column mein customer IDs nahi mile.')
       return
     }
 
@@ -100,7 +70,6 @@ export default function BudgetAllocationPanel({
       const response = await runBudgetOptimization({
         budget: budgetValue,
         available_discounts: discountValues,
-        customer_ids: customerIds,
         objective,
       })
 
@@ -128,14 +97,36 @@ export default function BudgetAllocationPanel({
     }
   }
 
-  const allocations = result?.allocation ?? []
+  const allocations = result?.allocation ?? result?.allocations ?? []
+  const treatedAllocations = allocations.filter(
+    (item) => Number(item.assigned_discount) > 0
+  )
+  const visibleAllocations = treatedAllocations.slice(0, DISPLAY_LIMIT)
 
   return (
     <div className="panel-content">
       <p>
-        Budget aur discount options select karke backend optimization
-        endpoint run karo. Results backend response par depend karenge.
+        Marketing budget aur discount options select karke customer
+        allocation optimize karo.
       </p>
+
+      <div
+        role="note"
+        style={{
+          padding: 12,
+          margin: '12px 0',
+          borderRadius: 8,
+          background: 'rgba(59, 130, 246, 0.10)',
+        }}
+      >
+        <strong>Customer data source:</strong>
+        <p style={{ marginBottom: 0 }}>
+          Optimization backend ki precomputed uplift matrix mein available
+          20,000 customers par run hota hai. Uploaded CSV ke customer IDs
+          is optimization mein use nahi hote, kyunki dono datasets ke IDs
+          match nahi karte.
+        </p>
+      </div>
 
       <label htmlFor="marketing-budget">Marketing Budget</label>
       <input
@@ -170,29 +161,18 @@ export default function BudgetAllocationPanel({
         <option value="MAXIMIZE_REVENUE">Maximize Revenue</option>
       </select>
 
-      <label htmlFor="customer-id-column">Customer ID Column</label>
-      <select
-        id="customer-id-column"
-        value={customerColumn}
-        onChange={(event) => setCustomerColumn(event.target.value)}
-      >
-        <option value="">Select customer ID column</option>
-        {headers.map((column) => (
-          <option key={column} value={column}>
-            {column}
-          </option>
-        ))}
-      </select>
-
       <button
         onClick={optimize}
-        disabled={loading || rows.length === 0}
+        disabled={loading || apiStatus !== 'Connected'}
       >
-        {loading ? 'Optimizing...' : 'Run Budget Optimization'}
+        {loading ? 'Optimizing 20,000 customers...' : 'Run Budget Optimization'}
       </button>
 
-      {rows.length === 0 && (
-        <p role="status">Upload a dataset before running optimization.</p>
+      {loading && (
+        <p role="status" aria-live="polite">
+          Optimization chal raha hai. Full customer dataset process hone mein
+          around 1–2 minutes lag sakte hain. Please wait.
+        </p>
       )}
 
       {error && (
@@ -207,41 +187,35 @@ export default function BudgetAllocationPanel({
 
           {result.is_mock === true && (
             <p role="status">
-              Mock/scaffold output — not a validated budget recommendation.
+              Mock/scaffold output — validated budget recommendation nahi hai.
             </p>
           )}
 
-          <p>
-            <strong>Status:</strong> {formatValue(result.status)}
-          </p>
-          <p>
-            <strong>Optimization ID:</strong>{' '}
-            {formatValue(result.optimization_id)}
-          </p>
+          <p><strong>Status:</strong> {formatValue(result.status)}</p>
+          <p><strong>Optimization ID:</strong> {formatValue(result.optimization_id)}</p>
           <p>
             <strong>Result type:</strong>{' '}
-            {result.is_mock === true ? 'Mock' : 'Backend response'}
+            {result.is_mock === true ? 'Mock' : 'Backend solver response'}
           </p>
-          <p>
-            <strong>Total Spend:</strong>{' '}
-            {formatValue(result.total_spend)}
+          <p><strong>Total Customers:</strong>{' '}
+            {formatValue(result.summary?.total_customers ?? allocations.length)}
           </p>
-          <p>
-            <strong>Unused Budget:</strong>{' '}
-            {formatValue(result.unused_budget)}
+          <p><strong>Treated Customers:</strong>{' '}
+            {formatValue(result.summary?.treated_customers ?? result.allocated_customers_count)}
           </p>
-          <p>
-            <strong>Objective Value:</strong>{' '}
-            {formatValue(result.objective_value)}
-          </p>
-          <p>
-            <strong>Allocated Customers:</strong>{' '}
-            {formatValue(result.allocated_customers_count)}
+          <p><strong>Total Spend:</strong> {formatValue(result.total_spend)}</p>
+          <p><strong>Unused Budget:</strong> {formatValue(result.unused_budget)}</p>
+          <p><strong>Expected Uplift:</strong>{' '}
+            {formatValue(result.total_expected_uplift ?? result.objective_value)}
           </p>
 
           {allocations.length > 0 ? (
             <>
               <h4>Customer Allocations</h4>
+              <p>
+                Showing {visibleAllocations.length} of {treatedAllocations.length} treated customers.
+              </p>
+
               <div style={{ overflowX: 'auto' }}>
                 <table>
                   <thead>
@@ -249,14 +223,16 @@ export default function BudgetAllocationPanel({
                       <th>Customer ID</th>
                       <th>Assigned Discount</th>
                       <th>Cost</th>
+                      <th>Expected Uplift</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {allocations.map((item, index) => (
+                    {visibleAllocations.map((item, index) => (
                       <tr key={`${item.customer_id}-${index}`}>
                         <td>{formatValue(item.customer_id)}</td>
                         <td>{formatValue(item.assigned_discount)}</td>
                         <td>{formatValue(item.cost)}</td>
+                        <td>{formatValue(item.expected_uplift)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -264,10 +240,7 @@ export default function BudgetAllocationPanel({
               </div>
             </>
           ) : (
-            <p role="status">
-              Allocation details are not included in the current API response
-              schema. The backend currently exposes optimization metadata only.
-            </p>
+            <p role="status">No allocation records were returned.</p>
           )}
         </div>
       )}

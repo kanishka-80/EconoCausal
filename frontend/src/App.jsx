@@ -389,8 +389,8 @@ function App() {
               </span>
             </div>
             <p>Causal analysis</p>
-            <h2>Not started</h2>
-            <small>{apiStatus === "Connected" ? "API connected; analysis endpoint not yet available" : "Connect the backend API to enable analysis"}</small>
+            <h2>Demo output</h2>
+            <small>{apiStatus === "Connected" ? "Baseline response available; validated DML pending" : "Connect the backend API to enable analysis"}</small>
           </article>
 
           <article className="stat-card amber">
@@ -403,8 +403,8 @@ function App() {
               </span>
             </div>
             <p>Budget allocation</p>
-            <h2>Not available</h2>
-            <small>Waiting for optimization functionality</small>
+            <h2>{apiStatus === "Connected" ? "Available" : "Offline"}</h2>
+            <small>{apiStatus === "Connected" ? "Backend optimization endpoint connected" : "Connect the backend API to enable optimization"}</small>
           </article>
 
           {/* Day 4: Dataset summary cards */}
