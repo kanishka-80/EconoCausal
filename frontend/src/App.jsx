@@ -637,13 +637,7 @@ function App() {
 />
 
 
-          <div className="causal-results-notice">
-            <Activity size={18} />
-            <p>
-              No causal estimates are available yet. Actual results will
-              appear after the causal model is connected and validated.
-            </p>
-          </div>
+
         </section>
 
 

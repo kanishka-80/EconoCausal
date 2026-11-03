@@ -5,24 +5,35 @@ const ALLOWED_DISCOUNTS = [5, 10, 20]
 const DISPLAY_LIMIT = 100
 
 const formatValue = (value) => {
-  if (value === null || value === undefined || value === '') {
-    return 'Not provided'
-  }
+  if (value === null || value === undefined || value === '') return 'Not provided'
+  if (typeof value === 'number' && !Number.isFinite(value)) return 'Not available'
 
-  if (typeof value === 'number' && !Number.isFinite(value)) {
-    return 'Not available'
-  }
+  return typeof value === 'number' ? value.toLocaleString(undefined, {
+    maximumFractionDigits: 4,
+  }) : String(value)
+}
 
-  return String(value)
+const getStatusClass = (status) => {
+  const value = String(status || '').toLowerCase()
+
+  if (value.includes('feasible') || value.includes('complete') || value === 'success') {
+    return 'success'
+  }
+  if (value.includes('fail') || value.includes('error')) return 'danger'
+  if (value.includes('warning')) return 'warning'
+  return 'pending'
 }
 
 export default function BudgetAllocationPanel({ apiStatus }) {
+  const [activeTab, setActiveTab] = useState('Configure')
   const [budget, setBudget] = useState('1000')
   const [discounts, setDiscounts] = useState('5,10,20')
   const [objective, setObjective] = useState('MAXIMIZE_UPLIFT')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+
+  const tabs = ['Configure', 'Results', 'Customer Allocation']
 
   const optimize = async () => {
     if (loading) return
@@ -50,9 +61,7 @@ export default function BudgetAllocationPanel({ apiStatus }) {
     if (
       discountValues.length === 0 ||
       discountValues.some(
-        (value) =>
-          !Number.isFinite(value) ||
-          !ALLOWED_DISCOUNTS.includes(value),
+        (value) => !Number.isFinite(value) || !ALLOWED_DISCOUNTS.includes(value),
       )
     ) {
       setError('Allowed discounts sirf 5, 10, 20 hain.')
@@ -90,6 +99,7 @@ export default function BudgetAllocationPanel({ apiStatus }) {
       }
 
       setResult({ ...data, allocation: allocations })
+      setActiveTab('Results')
     } catch (err) {
       setError(err.message || 'Budget optimization run nahi ho paya.')
     } finally {
@@ -97,133 +107,262 @@ export default function BudgetAllocationPanel({ apiStatus }) {
     }
   }
 
-  const allocations = result?.allocation ?? result?.allocations ?? []
+  const allocations = result?.allocation ?? []
   const treatedAllocations = allocations.filter(
-    (item) => Number(item.assigned_discount) > 0
+    (item) => Number(item.assigned_discount) > 0,
   )
   const visibleAllocations = treatedAllocations.slice(0, DISPLAY_LIMIT)
 
-  return (
-    <div className="panel-content">
-      <p>
-        Marketing budget aur discount options select karke customer
-        allocation optimize karo.
-      </p>
+  const limitations = [
+    ...(Array.isArray(result?.limitations) ? result.limitations : []),
+    ...(typeof result?.limitations === 'string' ? [result.limitations] : []),
+    ...(Array.isArray(result?.metadata?.limitations) ? result.metadata.limitations : []),
+  ]
 
-      <div
-        role="note"
-        style={{
-          padding: 12,
-          margin: '12px 0',
-          borderRadius: 8,
-          background: 'rgba(59, 130, 246, 0.10)',
-        }}
-      >
-        <strong>Customer data source:</strong>
-        <p style={{ marginBottom: 0 }}>
-          Optimization backend ki precomputed uplift matrix mein available
-          20,000 customers par run hota hai. Uploaded CSV ke customer IDs
-          is optimization mein use nahi hote, kyunki dono datasets ke IDs
-          match nahi karte.
-        </p>
+  return (
+    <div className="ec-panel">
+      <div className="ec-panel-intro">
+        <div>
+          <span className="ec-eyebrow">BUDGET OPTIMIZATION</span>
+          <h3>Allocation Workspace</h3>
+          <p>Configure marketing spend and review backend optimization results.</p>
+        </div>
+
+        <span className={`ec-connection ${apiStatus === 'Connected' ? 'online' : 'offline'}`}>
+          <span />
+          {apiStatus === 'Connected' ? 'Backend connected' : 'Backend unavailable'}
+        </span>
       </div>
 
-      <label htmlFor="marketing-budget">Marketing Budget</label>
-      <input
-        id="marketing-budget"
-        type="number"
-        min="0.01"
-        step="any"
-        value={budget}
-        onChange={(event) => setBudget(event.target.value)}
-      />
+      <div className="ec-tabs" role="tablist" aria-label="Budget allocation sections">
+        {tabs.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            className={activeTab === tab ? 'active' : ''}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
 
-      <label htmlFor="discount-options">
-        Available Discounts (comma-separated)
-      </label>
-      <input
-        id="discount-options"
-        value={discounts}
-        onChange={(event) => setDiscounts(event.target.value)}
-        placeholder="5,10,20"
-      />
-      <small>Allowed values: 5, 10, 20</small>
+      {error && <div className="ec-alert error" role="alert">{error}</div>}
 
-      <label htmlFor="optimization-objective">
-        Optimization Objective
-      </label>
-      <select
-        id="optimization-objective"
-        value={objective}
-        onChange={(event) => setObjective(event.target.value)}
-      >
-        <option value="MAXIMIZE_UPLIFT">Maximize Uplift</option>
-        <option value="MAXIMIZE_REVENUE">Maximize Revenue</option>
-      </select>
+      {activeTab === 'Configure' && (
+        <div className="ec-tab-content">
+          <div className="ec-section-heading">
+            <div>
+              <h4>Optimization settings</h4>
+              <p>Choose the budget, available discounts and optimization objective.</p>
+            </div>
+            <span className="ec-step-label">STEP 01</span>
+          </div>
 
-      <button
-        onClick={optimize}
-        disabled={loading || apiStatus !== 'Connected'}
-      >
-        {loading ? 'Optimizing 20,000 customers...' : 'Run Budget Optimization'}
-      </button>
+          <div className="ec-alert info">
+            <strong>Customer data source</strong>
+            <p>
+              The current backend optimizer uses a separate precomputed uplift
+              matrix containing 20,000 customers. The uploaded CSV has different
+              customer IDs and is not currently used in this optimization run.
+            </p>
+          </div>
 
-      {loading && (
-        <p role="status" aria-live="polite">
-          Optimization chal raha hai. Full customer dataset process hone mein
-          around 1–2 minutes lag sakte hain. Please wait.
-        </p>
-      )}
+          <div className="ec-form-grid">
+            <label className="ec-field">
+              <span>Marketing budget</span>
+              <input
+                type="number"
+                min="0.01"
+                step="any"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="Enter budget"
+              />
+              <small>Enter a positive budget amount.</small>
+            </label>
 
-      {error && (
-        <p role="alert" style={{ color: '#ef7777', marginTop: 12 }}>
-          {error}
-        </p>
-      )}
+            <label className="ec-field">
+              <span>Available discounts</span>
+              <input
+                value={discounts}
+                onChange={(e) => setDiscounts(e.target.value)}
+                placeholder="5,10,20"
+              />
+              <small>Allowed values: 5, 10, 20. Separate with commas.</small>
+            </label>
+          </div>
 
-      {result && (
-        <div style={{ marginTop: 20 }}>
-          <h3>Optimization Results</h3>
+          <label className="ec-field ec-objective-field">
+            <span>Optimization objective</span>
+            <select value={objective} onChange={(e) => setObjective(e.target.value)}>
+              <option value="MAXIMIZE_UPLIFT">Maximize Uplift</option>
+              <option value="MAXIMIZE_REVENUE">Maximize Revenue</option>
+            </select>
+            <small>
+              The selected objective is sent to the backend. Actual support and
+              behavior depend on the backend implementation.
+            </small>
+          </label>
 
-          {result.is_mock === true && (
-            <p role="status">
-              Mock/scaffold output — validated budget recommendation nahi hai.
+          <div className="ec-action-row">
+            <span className="ec-muted-text">
+              {apiStatus === 'Connected' ? 'Ready to submit' : 'Backend connection required'}
+            </span>
+            <button
+              type="button"
+              className="ec-primary-button"
+              onClick={optimize}
+              disabled={loading || apiStatus !== 'Connected'}
+            >
+              {loading ? 'Optimizing...' : 'Run budget optimization'}
+            </button>
+          </div>
+
+          {loading && (
+            <p className="ec-loading" role="status" aria-live="polite">
+              Optimization is running. Processing the backend customer dataset may
+              take around 1–2 minutes. Please wait.
             </p>
           )}
+        </div>
+      )}
 
-          <p><strong>Status:</strong> {formatValue(result.status)}</p>
-          <p><strong>Optimization ID:</strong> {formatValue(result.optimization_id)}</p>
-          <p>
-            <strong>Result type:</strong>{' '}
-            {result.is_mock === true ? 'Mock' : 'Backend solver response'}
-          </p>
-          <p><strong>Total Customers:</strong>{' '}
-            {formatValue(result.summary?.total_customers ?? allocations.length)}
-          </p>
-          <p><strong>Treated Customers:</strong>{' '}
-            {formatValue(result.summary?.treated_customers ?? result.allocated_customers_count)}
-          </p>
-          <p><strong>Total Spend:</strong> {formatValue(result.total_spend)}</p>
-          <p><strong>Unused Budget:</strong> {formatValue(result.unused_budget)}</p>
-          <p><strong>Expected Uplift:</strong>{' '}
-            {formatValue(result.total_expected_uplift ?? result.objective_value)}
-          </p>
-
-          {allocations.length > 0 ? (
+      {activeTab === 'Results' && (
+        <div className="ec-tab-content">
+          {!result ? (
+            <div className="ec-empty-state">
+              <h4>No optimization results yet</h4>
+              <p>Configure your budget and run optimization to view results.</p>
+              <button className="ec-secondary-button" onClick={() => setActiveTab('Configure')}>
+                Configure optimization
+              </button>
+            </div>
+          ) : (
             <>
-              <h4>Customer Allocations</h4>
-              <p>
+              {result.is_mock === true && (
+                <div className="ec-alert warning" role="status">
+                  <strong>Mock / scaffold output</strong>
+                  <p>This result should not be treated as a validated recommendation.</p>
+                </div>
+              )}
+
+              <div className="ec-result-heading">
+                <div>
+                  <h4>Optimization results</h4>
+                  <p>Summary of the optimization response returned by the backend.</p>
+                </div>
+                <span className={`ec-status ${getStatusClass(result.status)}`}>
+                  {result.status}
+                </span>
+              </div>
+
+              <div className="ec-metric-grid">
+                <div className="ec-metric-card">
+                  <span>Total spend</span>
+                  <strong>{formatValue(result.total_spend)}</strong>
+                  <small>Backend-reported spend</small>
+                </div>
+
+                <div className="ec-metric-card">
+                  <span>Unused budget</span>
+                  <strong>{formatValue(result.unused_budget)}</strong>
+                  <small>Remaining budget</small>
+                </div>
+
+                <div className="ec-metric-card">
+                  <span>Expected uplift</span>
+                  <strong>
+                    {formatValue(result.total_expected_uplift ?? result.objective_value)}
+                  </strong>
+                  <small>Backend-reported objective value</small>
+                </div>
+              </div>
+
+              <div className="ec-detail-grid">
+                <div className="ec-detail-card">
+                  <span>Optimization ID</span>
+                  <strong>{result.optimization_id}</strong>
+                </div>
+                <div className="ec-detail-card">
+                  <span>Result type</span>
+                  <strong>{result.is_mock === true ? 'Mock output' : 'Backend solver response'}</strong>
+                </div>
+                <div className="ec-detail-card">
+                  <span>Total customers</span>
+                  <strong>
+                    {formatValue(result.summary?.total_customers ?? allocations.length)}
+                  </strong>
+                </div>
+                <div className="ec-detail-card">
+                  <span>Treated customers</span>
+                  <strong>
+                    {formatValue(
+                      result.summary?.treated_customers ??
+                      result.allocated_customers_count ??
+                      treatedAllocations.length,
+                    )}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="ec-alert info">
+                <strong>Interpretation note</strong>
+                <p>
+                  Expected uplift is a backend-reported estimate, not a guarantee
+                  of actual business outcomes. The optimizer currently uses a
+                  separate precomputed uplift matrix rather than the uploaded CSV.
+                </p>
+              </div>
+
+              {limitations.length > 0 && (
+                <div className="ec-warning-list">
+                  <h4>Backend limitations</h4>
+                  {limitations.map((item, index) => (
+                    <p key={index}>{String(item)}</p>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'Customer Allocation' && (
+        <div className="ec-tab-content">
+          <div className="ec-section-heading">
+            <div>
+              <h4>Customer allocation</h4>
+              <p>Customer-level assignments returned by the backend.</p>
+            </div>
+          </div>
+
+          {!result ? (
+            <div className="ec-empty-state">
+              <h4>Allocation not available</h4>
+              <p>Run budget optimization first to view customer assignments.</p>
+            </div>
+          ) : treatedAllocations.length > 0 ? (
+            <>
+              <div className="ec-allocation-summary">
+                <strong>{treatedAllocations.length.toLocaleString()}</strong>
+                <span>customers with a positive assigned discount</span>
+              </div>
+
+              <p className="ec-muted-text">
                 Showing {visibleAllocations.length} of {treatedAllocations.length} treated customers.
               </p>
 
-              <div style={{ overflowX: 'auto' }}>
-                <table>
+              <div className="ec-table-wrap">
+                <table className="ec-table">
                   <thead>
                     <tr>
                       <th>Customer ID</th>
-                      <th>Assigned Discount</th>
+                      <th>Assigned discount</th>
                       <th>Cost</th>
-                      <th>Expected Uplift</th>
+                      <th>Expected uplift</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -238,9 +377,19 @@ export default function BudgetAllocationPanel({ apiStatus }) {
                   </tbody>
                 </table>
               </div>
+
+              {treatedAllocations.length > DISPLAY_LIMIT && (
+                <p className="ec-footnote">
+                  The table is limited to the first {DISPLAY_LIMIT} treated customers
+                  for display. The backend response contains {treatedAllocations.length} treated records.
+                </p>
+              )}
             </>
           ) : (
-            <p role="status">No allocation records were returned.</p>
+            <div className="ec-empty-state">
+              <h4>No treated customers returned</h4>
+              <p>The backend did not return any customer with a positive assigned discount.</p>
+            </div>
           )}
         </div>
       )}
