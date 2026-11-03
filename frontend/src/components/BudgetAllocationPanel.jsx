@@ -28,7 +28,6 @@ export default function BudgetAllocationPanel({ apiStatus }) {
   const [activeTab, setActiveTab] = useState('Configure')
   const [budget, setBudget] = useState('1000')
   const [discounts, setDiscounts] = useState('5,10,20')
-  const [objective, setObjective] = useState('MAXIMIZE_UPLIFT')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
@@ -79,7 +78,7 @@ export default function BudgetAllocationPanel({ apiStatus }) {
       const response = await runBudgetOptimization({
         budget: budgetValue,
         available_discounts: discountValues,
-        objective,
+        objective: 'MAXIMIZE_UPLIFT',
       })
 
       const data = response?.data
@@ -156,7 +155,7 @@ export default function BudgetAllocationPanel({ apiStatus }) {
           <div className="ec-section-heading">
             <div>
               <h4>Optimization settings</h4>
-              <p>Choose the budget, available discounts and optimization objective.</p>
+              <p>Choose the marketing budget and available discount levels.</p>
             </div>
             <span className="ec-step-label">STEP 01</span>
           </div>
@@ -195,17 +194,13 @@ export default function BudgetAllocationPanel({ apiStatus }) {
             </label>
           </div>
 
-          <label className="ec-field ec-objective-field">
-            <span>Optimization objective</span>
-            <select value={objective} onChange={(e) => setObjective(e.target.value)}>
-              <option value="MAXIMIZE_UPLIFT">Maximize Uplift</option>
-              <option value="MAXIMIZE_REVENUE">Maximize Revenue</option>
-            </select>
-            <small>
-              The selected objective is sent to the backend. Actual support and
-              behavior depend on the backend implementation.
-            </small>
-          </label>
+          <div className="ec-alert info">
+            <strong>Optimization objective: Maximize Uplift</strong>
+            <p>
+              The current backend optimizer supports uplift maximization.
+              Revenue maximization is not available in the current implementation.
+            </p>
+          </div>
 
           <div className="ec-action-row">
             <span className="ec-muted-text">

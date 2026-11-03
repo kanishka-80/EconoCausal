@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   checkApiHealth,
   getDatasetSummary,
+  getCausalResults,
   runCausalAnalysis,
   runBudgetOptimization,
 } from '../src/services/api.js'
@@ -106,5 +107,40 @@ test('API service reports network failures clearly', async (t) => {
   await assert.rejects(
     runCausalAnalysis({ treatment_column: 'discount' }),
     /backend API is unreachable/,
+  )
+})
+
+
+test('getCausalResults encodes the run ID in the request URL', async (t) => {
+  let requestedUrl
+
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    requestedUrl = url
+    return new Response(
+      JSON.stringify({
+        status: 'success',
+        data: { run_id: 'run/one', status: 'completed' },
+      }),
+      { status: 200 },
+    )
+  })
+
+  const result = await getCausalResults('run/one')
+
+  assert.equal(requestedUrl, '/api/causal/results/run%2Fone')
+  assert.equal(result.data.status, 'completed')
+})
+
+test('API service reports a useful error for a non-JSON server response', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () =>
+    new Response('Server unavailable', {
+      status: 500,
+      headers: { 'Content-Type': 'text/plain' },
+    }),
+  )
+
+  await assert.rejects(
+    getDatasetSummary,
+    /API request failed \(500\)/,
   )
 })

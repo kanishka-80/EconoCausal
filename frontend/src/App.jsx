@@ -1,8 +1,8 @@
 import { parseCSVContent } from './utils/csv'
 import { checkApiHealth, uploadDataset, getDatasetSummary } from './services/api'
 import CausalAnalysisPanel from './components/CausalAnalysisPanel'
-import { useEffect, useState } from 'react'
-import Plot from 'react-plotly.js'
+import { lazy, Suspense, useEffect, useState } from 'react'
+const Plot = lazy(() => import('react-plotly.js'))
 
 import BudgetAllocationPanel from './components/BudgetAllocationPanel'
 import {
@@ -58,6 +58,16 @@ function DatasetCharts({ headers, rows }) {
 
             return (
               <div key={column.index} style={{ minWidth: 0 }}>
+                <Suspense
+                  fallback={
+                    <div
+                      role="status"
+                      style={{ minHeight: 320, display: 'grid', placeItems: 'center' }}
+                    >
+                      Loading chart...
+                    </div>
+                  }
+                >
                 <Plot
                   data={[{
                     x: points.map(point => point.x),
@@ -77,6 +87,7 @@ function DatasetCharts({ headers, rows }) {
                   style={{ width: '100%', height: 320 }}
                   useResizeHandler
                 />
+                </Suspense>
               </div>
             )
           })}
