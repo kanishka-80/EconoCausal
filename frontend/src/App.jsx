@@ -199,6 +199,7 @@ function App() {
     setIsLoading(false)
     setUploadStatus('Not uploaded')
     setSummaryStatus('Waiting for dataset')
+    setBackendSummary(null)
   }
 
   const missingValues = rows.reduce((total, row) => {
