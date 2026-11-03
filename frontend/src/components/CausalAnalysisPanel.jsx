@@ -47,6 +47,7 @@ export default function CausalAnalysisPanel({ headers = [], rows = [], apiStatus
   }
 
   const analyze = async () => {
+    if (loading) return
     setError('')
     setResult(null)
 
