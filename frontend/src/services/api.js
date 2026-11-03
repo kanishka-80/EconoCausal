@@ -110,3 +110,18 @@ export async function runBudgetOptimization(payload) {
 
   return handleResponse(response)
 }
+
+
+export async function resetDataset() {
+  let response
+
+  try {
+    response = await fetch(`${API_BASE_URL}/data/reset`, {
+      method: 'POST',
+    })
+  } catch {
+    throw new Error('Dataset reset failed: backend API is unreachable.')
+  }
+
+  return handleResponse(response)
+}

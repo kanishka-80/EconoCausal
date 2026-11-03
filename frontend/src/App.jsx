@@ -1,5 +1,5 @@
 import { parseCSVContent } from './utils/csv'
-import { checkApiHealth, uploadDataset, getDatasetSummary } from './services/api'
+import { checkApiHealth, uploadDataset, getDatasetSummary, resetDataset } from './services/api'
 import CausalAnalysisPanel from './components/CausalAnalysisPanel'
 import { lazy, Suspense, useEffect, useState } from 'react'
 const Plot = lazy(() => import('react-plotly.js'))
@@ -201,16 +201,34 @@ function App() {
     reader.readAsText(file)
   }
 
-  function removeFile() {
+  async function removeFile() {
     setFileName('')
     setHeaders([])
     setRows([])
     setSearch('')
     setError('')
     setIsLoading(false)
-    setUploadStatus('Not uploaded')
-    setSummaryStatus('Waiting for dataset')
     setBackendSummary(null)
+
+    if (apiStatus !== 'Connected') {
+      setUploadStatus('Local file removed; backend reset not confirmed')
+      setSummaryStatus('Backend may still retain the previous dataset')
+      return
+    }
+
+    setUploadStatus('Removing backend dataset...')
+
+    try {
+      await resetDataset()
+      setUploadStatus('File removed; backend dataset reset')
+      setSummaryStatus('Waiting for dataset')
+    } catch {
+      setUploadStatus('Local file removed; backend reset failed')
+      setSummaryStatus('Backend may still retain the previous dataset')
+      setError(
+        'Local preview cleared, but backend reset failed. The backend may still retain the previous dataset.',
+      )
+    }
   }
 
   const missingValues = rows.reduce((total, row) => {
@@ -643,6 +661,7 @@ function App() {
 
 
 <CausalAnalysisPanel
+  key={fileName}
   headers={headers}
   rows={rows}
   apiStatus={apiStatus}
@@ -671,6 +690,7 @@ function App() {
   </div>
 
  <BudgetAllocationPanel
+  key={fileName}
   headers={headers}
   rows={rows}
   apiStatus={apiStatus}

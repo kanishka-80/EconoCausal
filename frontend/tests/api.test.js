@@ -6,6 +6,7 @@ import {
   getCausalResults,
   runCausalAnalysis,
   runBudgetOptimization,
+  resetDataset,
 } from '../src/services/api.js'
 
 test('checkApiHealth returns the backend health response', async (t) => {
@@ -143,4 +144,40 @@ test('API service reports a useful error for a non-JSON server response', async 
     getDatasetSummary,
     /API request failed \(500\)/,
   )
+})
+
+
+test('resetDataset sends POST to the dataset reset endpoint', async (t) => {
+  let request
+
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    request = { url, options }
+    return new Response(
+      JSON.stringify({
+        status: 'success',
+        data: { message: 'Dataset cleared successfully.' },
+      }),
+      { status: 200 },
+    )
+  })
+
+  const result = await resetDataset()
+
+  assert.equal(request.url, '/api/data/reset')
+  assert.equal(request.options.method, 'POST')
+  assert.equal(result.status, 'success')
+})
+
+test('resetDataset reports backend reset errors', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () =>
+    new Response(
+      JSON.stringify({
+        status: 'error',
+        error: { message: 'Reset failed' },
+      }),
+      { status: 400 },
+    ),
+  )
+
+  await assert.rejects(resetDataset, /Reset failed/)
 })
