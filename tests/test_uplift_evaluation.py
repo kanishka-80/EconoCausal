@@ -246,3 +246,14 @@ def test_missing_customer_id_is_rejected():
             control_level=0,
             id_col="customer_id",
         )
+
+def test_non_numeric_scores_rejected(sample_data):
+    scores = ["invalid", 0.9, 0.2, 0.8, 0.7, 0.3]
+
+    with pytest.raises(ValueError, match="numeric values"):
+        evaluate_uplift(
+            sample_data,
+            scores,
+            treatment_level=10,
+            control_level=0,
+        )

@@ -59,10 +59,15 @@ def evaluate_uplift(
     if not data[outcome_col].isin([0, 1]).all():
         raise ValueError("Outcome must be binary (0/1)")
 
-    scores = np.asarray(scores, dtype=float)
+    try:
+        scores = np.asarray(scores, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "scores must contain only numeric values"
+        ) from exc
+
     if len(scores) != len(data):
         raise ValueError("scores length must match data length")
-
     if not np.isfinite(scores).all():
         raise ValueError("scores must contain only finite values")
 
