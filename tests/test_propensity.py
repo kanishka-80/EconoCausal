@@ -117,6 +117,17 @@ class TestPropensity(unittest.TestCase):
                 covariates=["unknown_feature"],
             )
 
+
+    def test_non_numeric_probability_values_are_rejected(self):
+        invalid_scores = pd.DataFrame({
+            "propensity_0": ["0.4", "invalid"],
+            "propensity_5": ["0.6", "0.4"],
+        })
+
+        with self.assertRaisesRegex(ValueError, "numeric values"):
+            propensity_diagnostics(invalid_scores)
+
+
     def test_categorical_balance_rejects_missing_treatment(self):
         with self.assertRaises(ValueError):
             categorical_balance_diagnostics(
@@ -127,4 +138,3 @@ class TestPropensity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
- 

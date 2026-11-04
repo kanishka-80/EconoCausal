@@ -2,6 +2,7 @@
 """Multi-treatment propensity score estimation."""
 
 import pandas as pd
+import numpy as  np
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
@@ -96,8 +97,14 @@ def propensity_diagnostics(scores: pd.DataFrame) -> dict:
 
     if scores.isna().any().any():
         raise ValueError("Scores contain missing values.")
+    
+    try:
+        values = scores.to_numpy(dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Scores must contain only numeric values.") from exc
 
-    values = scores.to_numpy()
+    if not __import__("numpy").isfinite(values).all():
+        raise ValueError("Scores must contain only finite values.")
 
     if ((values < 0) | (values > 1)).any():
         raise ValueError("Scores must be between 0 and 1.")
