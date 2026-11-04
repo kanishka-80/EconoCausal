@@ -24,7 +24,6 @@ class OptimizationService:
     UPLIFT_CSV_PATH: Union[str, Path] = REPO_ROOT / "reports" / "customer_uplift_matrix.csv"
 
     def _resolve_csv_path(self) -> Path:
-        """Resolves the uplift CSV path dynamically whether set as str or Path."""
         p = Path(self.UPLIFT_CSV_PATH)
         if not p.is_absolute():
             return REPO_ROOT / p
@@ -35,16 +34,20 @@ class OptimizationService:
         customer_ids: List[str],
         positive_discounts: List[float],
     ) -> Tuple[List[str], np.ndarray]:
-        """Loads and aligns real CATE estimates strictly from Ritik's DML uplift matrix."""
-        # 1. Validate supported discounts align with available estimates
-        supported_treatments = {5.0: "uplift_5", 10.0: "uplift_10", 20.0: "uplift_20"}
+        # Support both [5.0, 10.0, 20.0] and [10.0, 20.0, 30.0]
+        supported_treatments = {
+            5.0: "uplift_5",
+            10.0: "uplift_10",
+            20.0: "uplift_20",
+            30.0: "uplift_30",
+        }
         for d in positive_discounts:
             if d not in supported_treatments:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail={
                         "code": "UNSUPPORTED_DISCOUNT",
-                        "message": f"Discount level {d} is not supported. Supported positive discounts are: [5.0, 10.0, 20.0]",
+                        "message": f"Discount level {d} is not supported. Supported positive discounts are: {sorted(list(supported_treatments.keys()))}",
                         "details": [],
                     },
                 )
@@ -52,7 +55,6 @@ class OptimizationService:
         target_cols = [supported_treatments[d] for d in positive_discounts]
         csv_path = self._resolve_csv_path()
 
-        # 2. Check missing CSV artifact -> returns MISSING_CUSTOMER_ESTIMATES
         if not csv_path.exists():
             logger.error(f"Required DML estimates file not found at {csv_path}")
             raise HTTPException(
@@ -65,9 +67,21 @@ class OptimizationService:
             )
 
         df = pd.read_csv(csv_path)
+
+        # Verify required columns exist in the uploaded matrix
+        missing_target_cols = [c for c in target_cols if c not in df.columns]
+        if missing_target_cols:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INCOMPATIBLE_ESTIMATES",
+                    "message": f"DML matrix is missing required column(s): {missing_target_cols}",
+                    "details": missing_target_cols,
+                },
+            )
+
         df["customer_id_str"] = df["customer_id"].astype(str)
 
-        # 3. Detect and handle duplicate customer IDs in CSV explicitly
         if df["customer_id_str"].duplicated().any():
             duplicate_ids = df[df["customer_id_str"].duplicated()]["customer_id_str"].tolist()
             logger.warning(
@@ -77,7 +91,6 @@ class OptimizationService:
 
         df_indexed = df.set_index("customer_id_str")
 
-        # 4. Check requested customer IDs -> returns ESTIMATES_NOT_FOUND if missing
         str_ids = [str(cid) for cid in customer_ids]
         missing_ids = [cid for cid in str_ids if cid not in df_indexed.index]
         if missing_ids:
@@ -91,7 +104,6 @@ class OptimizationService:
                 },
             )
 
-        # 5. Extract aligned slice for optimizer
         subset = df_indexed.loc[str_ids, target_cols]
         uplift_matrix = subset.to_numpy(dtype=float)
 
@@ -108,8 +120,6 @@ class OptimizationService:
         return str_ids, uplift_matrix
 
     def run_optimization(self, payload: OptimizationRequest) -> OptimizationResultData:
-        """Executes budget-constrained promotional optimization via SciPy MILP/HiGHS."""
-        # 1. Input Validation
         if payload.budget <= 0:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -143,7 +153,6 @@ class OptimizationService:
 
         csv_path = self._resolve_csv_path()
 
-        # 2. Determine target customer cohort
         if payload.customer_ids:
             target_ids = payload.customer_ids
         else:
@@ -159,17 +168,14 @@ class OptimizationService:
             df = pd.read_csv(csv_path, usecols=["customer_id"])
             target_ids = df["customer_id"].astype(str).tolist()
 
-        # 3. Load aligned estimates strictly from DML output
         candidate_ids, uplift_matrix = self._load_estimates(target_ids, positive_discounts)
 
-        # 4. Invoke SciPy Solver
         solver_res = solve_budget_constrained_allocation(
             uplift_matrix=uplift_matrix,
             discount_levels=positive_discounts,
             budget=payload.budget,
         )
 
-        # 5. Format Allocations
         allocations: List[CustomerAllocation] = []
         discount_breakdown = {"0.0": 0}
         for d in positive_discounts:
