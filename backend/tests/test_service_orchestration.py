@@ -48,7 +48,7 @@ def test_causal_analysis_fails_on_missing_columns():
 def test_end_to_end_orchestration_flow():
     """Verify full workflow: Upload -> Analyze -> Diagnostics -> Optimize."""
     csv_rows = ["customer_id,discount_offered,purchased,income,age"]
-    for i in range(100001, 100050):
+    for i in range(30000, 100050):
         disc = 10.0 if i % 2 == 0 else 0.0
         purch = 1 if i % 3 == 0 else 0
         csv_rows.append(f"{i},{disc},{purch},{50000 + (i % 1000)},{30 + (i % 20)}")
@@ -59,7 +59,7 @@ def test_end_to_end_orchestration_flow():
         files={"file": ("campaign_records.csv", io.BytesIO(csv_bytes), "text/csv")},
     )
     assert upload_res.status_code == 200
-    assert upload_res.json()["data"]["row_count"] == 49
+    assert upload_res.json()["data"]["row_count"] == 70050
 
     causal_payload = {
         "treatment_column": "discount_offered",
@@ -75,8 +75,8 @@ def test_end_to_end_orchestration_flow():
 
     opt_payload = {
         "budget": 100.0,
-        "available_discounts": [5.0, 10.0, 20.0],
-        "customer_ids": ["100001", "100002", "100003", "100004"],
+        "available_discounts": [10.0, 20.0, 30.0],
+        "customer_ids": ["30000", "30001", "30002", "30003"],
     }
     opt_res = client.post("/api/optimization/run", json=opt_payload)
     assert opt_res.status_code == 200
@@ -85,4 +85,6 @@ def test_end_to_end_orchestration_flow():
     assert o_data["is_mock"] is False
     assert len(o_data["allocation"]) == 4
     assert o_data["total_spend"] <= 100.0
+
+
 

@@ -19,7 +19,7 @@ def test_independent_budget_feasibility_check():
     """Verify that returned allocations independently satisfy budget ceiling."""
     np.random.seed(101)
     N, K = 25, 3
-    discounts = [5.0, 10.0, 20.0]
+    discounts = [10.0, 20.0, 30.0]
     uplift = np.random.uniform(0.01, 0.20, size=(N, K))
     budget = 125.0
 
@@ -71,7 +71,7 @@ def test_mutual_exclusivity_strictly_enforced():
     """Verify each customer receives at most one non-zero discount offer."""
     np.random.seed(202)
     N, K = 50, 3
-    discounts = [5.0, 10.0, 20.0]
+    discounts = [10.0, 20.0, 30.0]
     # Generous budget so all customers could receive an offer
     uplift = np.random.uniform(0.05, 0.30, size=(N, K))
     budget = 1000.0
@@ -192,8 +192,8 @@ def test_optimization_service_solver_execution():
     """Verify service formats output and executes real SciPy allocation."""
     req = OptimizationRequest(
         budget=100.0,
-        available_discounts=[5.0, 10.0, 20.0],
-        customer_ids=["100001", "100002", "100003", "100004", "100005"],
+        available_discounts=[10.0, 20.0, 30.0],
+        customer_ids=["30000", "30001", "30002", "30003", "30004"],
     )
     res = optimization_service.run_optimization(req)
 
@@ -210,6 +210,9 @@ def test_optimization_service_rejects_negative_budget():
         OptimizationRequest(
             budget=-10.0,
             available_discounts=[10.0],
-            customer_ids=["c1"],
+            customer_ids=["30000"],
         )
+
+
+
 

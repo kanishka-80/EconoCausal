@@ -66,8 +66,8 @@ def test_deduplicate_customer_ids_in_optimization():
         "/api/optimization/run",
         json={
             "budget": 100.0,
-            "available_discounts": [5.0, 10.0, 20.0],
-            "customer_ids": ["100001", "100002", "100001"],
+            "available_discounts": [10.0, 20.0, 30.0],
+            "customer_ids": ["30000", "30001", "30000"],
         },
     )
     assert res.status_code == 200
@@ -75,3 +75,4 @@ def test_deduplicate_customer_ids_in_optimization():
     # 2 unique customers instead of 3
     assert len(data["allocation"]) == 2
     assert data["summary"]["total_customers"] == 2
+

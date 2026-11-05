@@ -8,8 +8,8 @@ def test_optimization_route_feasible_request():
     """Verify POST /api/optimization/run executes real solver and returns 200 OK."""
     payload = {
         "budget": 50.0,
-        "available_discounts": [5.0, 10.0, 20.0],
-        "customer_ids": ["100001", "100002", "100003", "100004"],
+        "available_discounts": [10.0, 20.0, 30.0],
+        "customer_ids": ["30000", "30001", "30002", "30003"],
         "objective": "MAXIMIZE_UPLIFT",
     }
     response = client.post("/api/optimization/run", json=payload)
@@ -33,7 +33,7 @@ def test_optimization_route_insufficient_budget():
     payload = {
         "budget": 2.0,
         "available_discounts": [10.0, 20.0],
-        "customer_ids": ["100001"],
+        "customer_ids": ["30000"],
     }
     response = client.post("/api/optimization/run", json=payload)
     assert response.status_code == 200
@@ -49,7 +49,7 @@ def test_optimization_route_validation_error_on_negative_budget():
     payload = {
         "budget": -10.0,
         "available_discounts": [10.0],
-        "customer_ids": ["100001"],
+        "customer_ids": ["30000"],
     }
     response = client.post("/api/optimization/run", json=payload)
     assert response.status_code == 422
@@ -61,10 +61,11 @@ def test_optimization_route_bad_request_on_empty_discounts():
     payload = {
         "budget": 100.0,
         "available_discounts": [],
-        "customer_ids": ["100001"],
+        "customer_ids": ["30000"],
     }
     response = client.post("/api/optimization/run", json=payload)
     assert response.status_code in [400, 422]
+
 
 
 
