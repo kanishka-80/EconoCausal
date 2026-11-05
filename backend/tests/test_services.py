@@ -148,12 +148,13 @@ def test_optimization_service_mock_run():
     req = OptimizationRequest(
         budget=100.0,
         available_discounts=[10.0, 20.0],
-        customer_ids=["100001", "100002", "100003"],
+        customer_ids=["30000", "30001", "30002"],
     )
     result = service.run_optimization(req)
     assert result.is_mock is False
     assert result.status == "FEASIBLE"
     assert result.total_spend <= 100.0
     assert len(result.allocation) == 3
+
 
 

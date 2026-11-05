@@ -296,7 +296,7 @@ def test_optimization_run_valid_payload():
     payload = {
         "budget": 50.0,
         "available_discounts": [10.0],
-        "customer_ids": ["100001", "100002"],
+        "customer_ids": ["30000", "30001"],
     }
     response = client.post("/api/optimization/run", json=payload)
     assert response.status_code == 200
@@ -317,6 +317,7 @@ def test_optimization_run_rejects_non_positive_budget():
     data = response.json()
     assert data["status"] == "error"
     assert data["error"]["code"] == "VALIDATION_ERROR"
+
 
 
 

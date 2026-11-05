@@ -19,10 +19,10 @@ def test_full_pipeline_mock_workflow():
     # 2. Upload dataset CSV
     csv_data = (
         b"customer_id,discount_offered,purchased,income,age\n"
-        b"100001,10.0,1,55000.0,32\n"
-        b"100002,0.0,0,48000.0,45\n"
-        b"100003,20.0,1,72000.0,29\n"
-        b"100004,0.0,0,34000.0,52\n"
+        b"30000,10.0,1,55000.0,32\n"
+        b"30001,0.0,0,48000.0,45\n"
+        b"30002,20.0,1,72000.0,29\n"
+        b"30003,0.0,0,34000.0,52\n"
     )
     files = {"file": ("campaign_sample.csv", io.BytesIO(csv_data), "text/csv")}
     upload_resp = client.post("/api/data/upload", files=files)
@@ -86,7 +86,7 @@ def test_full_pipeline_mock_workflow():
     opt_req = {
         "budget": 100.0,
         "available_discounts": [10.0, 20.0],
-        "customer_ids": ["100001", "100002", "100003"],
+        "customer_ids": ["30000", "30001", "30002"],
         "objective": "MAXIMIZE_UPLIFT",
     }
     opt_resp = client.post("/api/optimization/run", json=opt_req)
@@ -118,10 +118,10 @@ def test_end_to_end_real_estimates_allocation_pipeline():
     # Upload real-style cohort header
     csv_data = (
         b"customer_id,discount_offered,purchased,historical_spend,age\n"
-        b"100001,5.0,1,240.5,35\n"
-        b"100002,0.0,0,150.0,28\n"
-        b"100003,10.0,1,320.0,42\n"
-        b"100004,20.0,1,410.0,50\n"
+        b"30000,5.0,1,240.5,35\n"
+        b"30001,0.0,0,150.0,28\n"
+        b"30002,10.0,1,320.0,42\n"
+        b"30003,20.0,1,410.0,50\n"
     )
     files = {"file": ("cohort.csv", io.BytesIO(csv_data), "text/csv")}
     upload_res = client.post("/api/data/upload", files=files)
@@ -141,8 +141,8 @@ def test_end_to_end_real_estimates_allocation_pipeline():
     # Request optimization on real customers present in customer_uplift_matrix.csv
     opt_req = {
         "budget": 35.0,
-        "available_discounts": [5.0, 10.0, 20.0],
-        "customer_ids": ["100001", "100002", "100003", "100004"],
+        "available_discounts": [10.0, 20.0, 30.0],
+        "customer_ids": ["30000", "30001", "30002", "30003"],
         "objective": "MAXIMIZE_UPLIFT",
     }
     opt_res = client.post("/api/optimization/run", json=opt_req)
@@ -170,8 +170,8 @@ def test_end_to_end_infeasible_budget_handling():
 
     opt_req = {
         "budget": 2.0,  # Below minimum positive discount (5.0)
-        "available_discounts": [5.0, 10.0, 20.0],
-        "customer_ids": ["100001", "100002"],
+        "available_discounts": [10.0, 20.0, 30.0],
+        "customer_ids": ["30000", "30001"],
     }
     opt_res = client.post("/api/optimization/run", json=opt_req)
     assert opt_res.status_code == 200
@@ -228,4 +228,5 @@ def test_cors_preflight_headers():
     )
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
 
