@@ -2874,3 +2874,258 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     flex-direction: column;
   }
 }
+
+/* DATASET INSIGHTS WORKSPACE */
+.di-workspace {
+  margin-top: 20px;
+  padding: 24px;
+  color: #e6edff;
+  text-align: left;
+  overflow: hidden;
+}
+
+.di-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.di-eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #63bdf5;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+
+.di-heading h2 {
+  margin: 0 0 7px;
+  color: #e6edff;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.di-heading p,
+.di-section-title p,
+.di-card-heading p {
+  color: #91a3bb;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.di-status {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(99, 165, 255, .25);
+  border-radius: 20px;
+  background: rgba(56, 189, 248, .08);
+  color: #8bcfff;
+  font-size: 11px;
+}
+
+.di-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.di-summary-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #263750;
+  border-radius: 12px;
+  background: rgba(14, 28, 47, .72);
+}
+
+.di-summary-card span {
+  display: block;
+  margin-bottom: 9px;
+  color: #91a3bb;
+  font-size: 11px;
+}
+
+.di-summary-card strong {
+  color: #e6edff;
+  font-size: 23px;
+  overflow-wrap: anywhere;
+}
+
+.di-type-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  padding: 13px 15px;
+  border: 1px solid #263750;
+  border-radius: 10px;
+  background: rgba(8, 18, 32, .6);
+}
+
+.di-type-summary span {
+  color: #9aacc3;
+  font-size: 11px;
+}
+
+.di-type-summary strong {
+  color: #dceaff;
+}
+
+.di-section-title {
+  margin: 25px 0 13px;
+}
+
+.di-section-title h3 {
+  margin: 0 0 5px;
+  color: #e3edff;
+  font-size: 15px;
+}
+
+.di-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.di-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #263750;
+  border-radius: 12px;
+  background: rgba(12, 25, 43, .78);
+  overflow: hidden;
+}
+
+.di-card-wide {
+  grid-column: 1 / -1;
+}
+
+.di-card-heading {
+  margin-bottom: 10px;
+}
+
+.di-card-heading h3 {
+  margin: 0 0 5px;
+  color: #dceaff;
+  font-size: 13px;
+}
+
+.di-plot {
+  width: 100%;
+  min-width: 0;
+}
+
+.di-plot .js-plotly-plot,
+.di-plot .plot-container {
+  width: 100% !important;
+}
+
+.di-loading {
+  padding: 20px;
+  color: #9aacc3;
+  text-align: center;
+}
+
+.di-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #263750;
+  border-radius: 10px;
+}
+
+.di-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.di-table th,
+.di-table td {
+  padding: 11px 13px;
+  border-bottom: 1px solid #263750;
+  color: #b9c9dc;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.di-table th {
+  background: rgba(25, 43, 66, .85);
+  color: #dceaff;
+  font-weight: 700;
+}
+
+.di-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.di-type-tag {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(99, 165, 255, .12);
+  color: #91c8ff;
+  font-size: 10px;
+}
+
+.di-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 35px 18px;
+  border: 1px dashed #354a64;
+  border-radius: 12px;
+  color: #8fa5c0;
+  text-align: center;
+}
+
+.di-empty strong {
+  color: #dceaff;
+  font-size: 13px;
+}
+
+.di-empty p,
+.di-disclaimer {
+  color: #91a3bb;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.di-disclaimer {
+  margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+  .di-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .di-workspace {
+    padding: 15px;
+  }
+
+  .di-heading {
+    flex-direction: column;
+  }
+
+  .di-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .di-card-wide {
+    grid-column: auto;
+  }
+
+  .di-summary-card {
+    padding: 12px;
+  }
+
+  .di-summary-card strong {
+    font-size: 19px;
+  }
+}

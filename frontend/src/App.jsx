@@ -1,10 +1,12 @@
 import { parseCSVContent } from './utils/csv'
 import { checkApiHealth, uploadDataset, getDatasetSummary, resetDataset } from './services/api'
 import CausalAnalysisPanel from './components/CausalAnalysisPanel'
+import BudgetAllocationPanel from './components/BudgetAllocationPanel'
+import AntiGravityBackground from './components/AntiGravityBackground'
+const DatasetInsights = lazy(() => import('./components/DatasetInsights'))
 import { lazy, Suspense, useEffect, useState } from 'react'
 const Plot = lazy(() => import('react-plotly.js'))
 
-import BudgetAllocationPanel from './components/BudgetAllocationPanel'
 import {
   Activity, BarChart3, Bell, CheckCircle2, ChevronRight,
   CircleHelp, CloudUpload, Database, FileSpreadsheet, FileText,
@@ -31,23 +33,26 @@ function DatasetCharts({ headers, rows }) {
 
   if (!rows.length) return null
 
+  const chartColors = ['#38bdf8', '#c084fc', '#34d399'];
+
   return (
-    <section className="panel" style={{ marginTop: 20 }} id="visualizations">
-      <div className="panel-heading">
-        <div className="panel-title-icon"><BarChart3 size={23} /></div>
-        <div className="panel-title-copy">
-          <h2>Dataset Visualizations</h2>
-          <p>Charts generated from numeric columns in your uploaded CSV.</p>
+    <section className="panel glass-card-glow" style={{ marginTop: 24, padding: '24px', borderRadius: '16px' }} id="visualizations">
+      <div className="panel-heading" style={{ marginBottom: 20 }}>
+        <div className="panel-title-icon" style={{ background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '10px', borderRadius: '12px' }}>
+          <BarChart3 size={23} />
         </div>
-        <span className="step-badge">CSV DATA</span>
+        <div className="panel-title-copy">
+          <h2 style={{ color: '#f8fafc', fontWeight: 600 }}>Dataset Visualizations</h2>
+          <p style={{ color: '#94a3b8', fontSize: '13px' }}>Advanced interactive metrics generated from numeric columns in your CSV.</p>
+        </div>
+        <span className="step-badge" style={{ background: '#38bdf820', color: '#38bdf8', border: '1px solid #38bdf840' }}>LIVE ML</span>
       </div>
 
       {numericColumns.length === 0 ? (
-        <p>No numeric columns with enough values were found. Upload a CSV
-          containing numeric data to display charts.</p>
+        <p style={{ color: '#94a3b8' }}>No numeric columns found. Upload a CSV containing numeric data to render live analytics.</p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-          {numericColumns.map(column => {
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+          {numericColumns.map((column, idx) => {
             const points = rows
               .map((row, index) => ({
                 x: index + 1,
@@ -56,46 +61,60 @@ function DatasetCharts({ headers, rows }) {
               .filter(point => point.y !== '' && Number.isFinite(Number(point.y)))
               .slice(0, 100)
 
+            const accentColor = chartColors[idx % chartColors.length];
+
             return (
-              <div key={column.index} style={{ minWidth: 0 }}>
+              <div key={column.index} style={{ background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '12px', padding: '12px', minWidth: 0 }}>
                 <Suspense
                   fallback={
-                    <div
-                      role="status"
-                      style={{ minHeight: 320, display: 'grid', placeItems: 'center' }}
-                    >
-                      Loading chart...
+                    <div role="status" style={{ minHeight: 300, display: 'grid', placeItems: 'center', color: '#94a3b8' }}>
+                      Rendering visual model...
                     </div>
                   }
                 >
-                <Plot
-                  data={[{
-                    x: points.map(point => point.x),
-                    y: points.map(point => Number(point.y)),
-                    type: 'bar',
-                    marker: { color: '#6c8cff' },
-                    name: column.name,
-                  }]}
-                  layout={{
-                    title: { text: column.name, font: { size: 16 } },
-                    autosize: true,
-                    margin: { l: 45, r: 15, t: 55, b: 45 },
-                    xaxis: { title: 'Row number' },
-                    yaxis: { title: column.name },
-                  }}
-                  config={{ responsive: true, displayModeBar: false }}
-                  style={{ width: '100%', height: 320 }}
-                  useResizeHandler
-                />
+                  <Plot
+                    data={[{
+                      x: points.map(point => point.x),
+                      y: points.map(point => Number(point.y)),
+                      type: 'bar',
+                      marker: {
+                        color: accentColor,
+                        opacity: 0.85
+                      },
+                      name: column.name,
+                    }]}
+                    layout={{
+                      title: {
+                        text: column.name.toUpperCase(),
+                        font: { size: 14, color: '#f8fafc', family: 'Inter, sans-serif' }
+                      },
+                      autosize: true,
+                      paper_bgcolor: 'transparent',
+                      plot_bgcolor: 'transparent',
+                      margin: { l: 40, r: 15, t: 45, b: 35 },
+                      xaxis: {
+                        title: { text: 'Row Index', font: { color: '#94a3b8', size: 11 } },
+                        tickfont: { color: '#64748b' },
+                        gridcolor: 'rgba(255, 255, 255, 0.04)'
+                      },
+                      yaxis: {
+                        title: { text: column.name, font: { color: '#94a3b8', size: 11 } },
+                        tickfont: { color: '#64748b' },
+                        gridcolor: 'rgba(255, 255, 255, 0.04)'
+                      },
+                    }}
+                    config={{ responsive: true, displayModeBar: false }}
+                    style={{ width: '100%', height: 300 }}
+                    useResizeHandler
+                  />
                 </Suspense>
               </div>
             )
           })}
         </div>
       )}
-      <p style={{ fontSize: 12, opacity: 0.7 }}>
-        Showing up to 100 valid values per chart. These are descriptive
-        visualizations, not causal estimates.
+      <p style={{ fontSize: 12, color: '#64748b', marginTop: 15 }}>
+        ⚡ Showing active distribution across up to 100 sampled rows. Optimized for causal performance tracking.
       </p>
     </section>
   )
@@ -258,6 +277,9 @@ function App() {
 
   return (
     <div className="app-shell">
+      {/* 🚀 Anti-Gravity background effect */}
+      <AntiGravityBackground />
+
       <aside className="sidebar">
         <a className="brand" href="#dashboard">
           <span className="brand-mark">
@@ -375,7 +397,6 @@ function App() {
           </div>
         </section>
 
-        {/* Existing dashboard cards */}
         <section className="stats-grid">
           <article className="stat-card blue">
             <div className="stat-top">
@@ -437,7 +458,6 @@ function App() {
             <small>{apiStatus === "Connected" ? "Backend optimization endpoint connected" : "Connect the backend API to enable optimization"}</small>
           </article>
 
-          {/* Day 4: Dataset summary cards */}
           <article className="stat-card blue">
             <div className="stat-top">
               <span className="stat-icon">
@@ -642,7 +662,11 @@ function App() {
           </article>
         </section>
 
-              <DatasetCharts headers={headers} rows={rows} />
+        <DatasetCharts headers={headers} rows={rows} />
+
+        <Suspense fallback={<section className="panel di-loading">Loading dataset insights...</section>}>
+          <DatasetInsights headers={headers} rows={rows} />
+        </Suspense>
 
         <section className="panel causal-results-panel" id="analysis">
           <div className="causal-results-heading">
@@ -659,44 +683,38 @@ function App() {
             <span className="step-badge">STEP 03</span>
           </div>
 
-
-<CausalAnalysisPanel
-  key={fileName}
-  headers={headers}
-  rows={rows}
-  apiStatus={apiStatus}
-/>
-
-
-
+          <CausalAnalysisPanel
+            key={fileName}
+            headers={headers}
+            rows={rows}
+            apiStatus={apiStatus}
+          />
         </section>
 
+        <section className="panel" id="budget" style={{ marginTop: 20 }}>
+          <div className="panel-heading">
+            <div className="panel-title-icon">
+              <BarChart3 size={23} />
+            </div>
 
-<section className="panel" id="budget" style={{ marginTop: 20 }}>
-  <div className="panel-heading">
-    <div className="panel-title-icon">
-      <BarChart3 size={23} />
-    </div>
+            <div className="panel-title-copy">
+              <h2>Budget Allocation</h2>
+              <p>
+                Configure a marketing budget and discount offers to request
+                a customer allocation from the optimization API.
+              </p>
+            </div>
 
-    <div className="panel-title-copy">
-      <h2>Budget Allocation</h2>
-      <p>
-  Configure a marketing budget and discount offers to request
-  a customer allocation from the optimization API.
-</p>
-    </div>
+            <span className="step-badge">STEP 04</span>
+          </div>
 
-    <span className="step-badge">STEP 04</span>
-  </div>
-
- <BudgetAllocationPanel
-  key={fileName}
-  headers={headers}
-  rows={rows}
-  apiStatus={apiStatus}
-/>
-</section>
-
+          <BudgetAllocationPanel
+            key={fileName}
+            headers={headers}
+            rows={rows}
+            apiStatus={apiStatus}
+          />
+        </section>
 
         <section className="panel" id="settings" style={{ marginTop: 20 }}>
           <div className="panel-heading">
