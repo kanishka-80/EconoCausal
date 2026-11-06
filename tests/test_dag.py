@@ -62,6 +62,12 @@ class TestCausalDAG(unittest.TestCase):
 
         self.assertTrue(dag.is_acyclic())
 
+    def test_duplicate_edge_is_not_counted_twice(self):
+            dag = CausalDAG()
+            dag.add_edge("A", "B")
+            dag.add_edge("A", "B")
+            self.assertEqual(dag.number_of_nodes(), 2)
+            self.assertEqual(dag.number_of_edges(), 1)
 
 if __name__ == "__main__":
     unittest.main()
