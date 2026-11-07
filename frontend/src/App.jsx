@@ -2,7 +2,6 @@ import { parseCSVContent } from './utils/csv'
 import { checkApiHealth, uploadDataset, getDatasetSummary, resetDataset } from './services/api'
 import CausalAnalysisPanel from './components/CausalAnalysisPanel'
 import BudgetAllocationPanel from './components/BudgetAllocationPanel'
-import AntiGravityBackground from './components/AntiGravityBackground'
 const DatasetInsights = lazy(() => import('./components/DatasetInsights'))
 import { lazy, Suspense, useEffect, useState } from 'react'
 const Plot = lazy(() => import('react-plotly.js'))
@@ -277,8 +276,6 @@ function App() {
 
   return (
     <div className="app-shell">
-      {/* 🚀 Anti-Gravity background effect */}
-      <AntiGravityBackground />
 
       <aside className="sidebar">
         <a className="brand" href="#dashboard">
