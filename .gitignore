@@ -5,7 +5,11 @@ __pycache__/
 
 # Python virtual environments
 .venv/
+.venv*/
 venv/
+
+# Temporary and review folders
+.week4_temp/
 
 # Test and coverage cache
 .pytest_cache/
