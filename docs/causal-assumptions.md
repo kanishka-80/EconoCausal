@@ -1,4 +1,4 @@
-﻿# EconoCausal — Causal Assumptions
+# EconoCausal — Causal Assumptions
 
 ## 1. Target Question
 How does the offered discount level affect the probability of purchase?
@@ -184,3 +184,35 @@ pre-treatment covariate timing still requires verification.
 No actual DoWhy refutation results are available until the dependency
 is installed in a compatible environment and the checks are executed
 against a valid identified estimand and estimate.
+
+## 11. Week 4 Day 2 — DML and DAG Alignment Review
+
+### Confirmed Implementation Details
+
+The review response from the DML implementation owner confirms:
+
+- Treatment: `discount_offered`, with observed levels 0, 5, 10, and 20.
+- Outcome: `purchased`, a binary variable.
+- The current enriched synthetic dataset contains 20,000 rows and 40 columns.
+- The DML estimator uses 31 candidate features as X, `discount_offered` as T, and `purchased` as Y.
+- The 31 DML input features match the candidate covariates listed in the current DAG implementation.
+
+This confirms feature-name alignment between the current DAG candidate list and the DML inputs. It does not establish that the adjustment set or causal edges are scientifically justified.
+
+### Items Still Requiring Verification
+
+- Whether discount levels were randomly assigned or determined by a business rule or model.
+- Whether all 31 features were measured before discount assignment.
+- The measurement timing of `customer_satisfaction`, `return_rate`, and `campaign_type`, which are included in the current DML inputs.
+- The purchase observation window after a discount offer.
+- Whether the proposed DAG edges and adjustment covariates reflect the actual data-generating process.
+
+### Dataset Status
+
+The current dataset is synthetic and is used by the current DML pipeline. It must not be described as a final approved real-world causal dataset.
+
+### Day 2 Review Conclusion
+
+The current implementation has matching DML and DAG candidate feature names. However, treatment assignment, feature timing, outcome observation window, and causal justification remain unresolved.
+
+The DAG therefore remains provisional. No causal identification claim should be made solely from feature alignment, automated tests, propensity diagnostics, balance reports, or refutation-check execution status.
