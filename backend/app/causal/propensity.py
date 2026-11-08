@@ -2,6 +2,7 @@
 """Multi-treatment propensity score estimation."""
 
 import pandas as pd
+import numpy as  np
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
@@ -96,8 +97,14 @@ def propensity_diagnostics(scores: pd.DataFrame) -> dict:
 
     if scores.isna().any().any():
         raise ValueError("Scores contain missing values.")
+    
+    try:
+        values = scores.to_numpy(dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Scores must contain only numeric values.") from exc
 
-    values = scores.to_numpy()
+    if not __import__("numpy").isfinite(values).all():
+        raise ValueError("Scores must contain only finite values.")
 
     if ((values < 0) | (values > 1)).any():
         raise ValueError("Scores must be between 0 and 1.")
@@ -176,6 +183,74 @@ def covariate_balance_diagnostics(
                     "absolute_smd": smd,
                     "imbalanced_at_0_1": (
                         bool(smd >= 0.1) if pd.notna(smd) else None
+                    ),
+                })
+    return pd.DataFrame(rows)
+
+def categorical_balance_diagnostics(
+    data: pd.DataFrame,
+    treatment_col: str = TREATMENT,
+    covariates: list[str] | None = None,
+) -> pd.DataFrame:
+    """Compare categorical proportions across treatment groups.
+
+    Reports the maximum absolute category-proportion difference
+    for each pair of treatment groups. This is a descriptive
+    diagnostic, not proof of causal validity.
+    """
+    if treatment_col not in data.columns:
+        raise ValueError(f"Missing treatment column: {treatment_col}")
+
+    if data[treatment_col].isna().any():
+        raise ValueError("Treatment column contains missing values.")
+
+    if covariates is None:
+        covariates = [
+            col for col in CANDIDATE_COVARIATES
+            if col in data.columns
+            and not pd.api.types.is_numeric_dtype(data[col])
+        ]
+
+    if not covariates:
+        raise ValueError("At least one categorical covariate is required.")
+
+    missing = [col for col in covariates if col not in data.columns]
+    if missing:
+        raise ValueError(f"Missing covariates: {missing}")
+
+    categorical_features = [
+        col for col in covariates
+        if not pd.api.types.is_numeric_dtype(data[col])
+    ]
+    if not categorical_features:
+        raise ValueError("No categorical covariates available.")
+
+    groups = sorted(data[treatment_col].unique().tolist())
+    if len(groups) < 2:
+        raise ValueError("At least two treatment groups are required.")
+
+    rows = []
+
+    for feature in categorical_features:
+        values = data[feature].astype("string").fillna("<MISSING>")
+        proportions = pd.crosstab(
+            data[treatment_col],
+            values,
+            normalize="index",
+        ).reindex(groups, fill_value=0)
+
+        for i, group_a in enumerate(groups):
+            for group_b in groups[i + 1:]:
+                differences = (
+                    proportions.loc[group_a] - proportions.loc[group_b]
+                ).abs()
+
+                rows.append({
+                    "treatment_a": group_a,
+                    "treatment_b": group_b,
+                    "covariate": feature,
+                    "max_abs_proportion_difference": float(
+                        differences.max()
                     ),
                 })
 

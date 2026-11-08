@@ -5,6 +5,7 @@ from backend.app.causal.dag import (
     CANDIDATE_COVARIATES,
     OUTCOME,
     TREATMENT,
+    CausalDAG,
     build_causal_dag,
 )
 
@@ -41,6 +42,32 @@ class TestCausalDAG(unittest.TestCase):
             with self.subTest(edge=(source, target)):
                 self.assertNotEqual(source, target)
 
+    def test_built_graph_is_acyclic(self):
+        self.assertTrue(self.dag.is_acyclic())
+        self.assertFalse(self.dag.has_cycle())
+
+    def test_cycle_is_detected(self):
+        dag = CausalDAG()
+        dag.add_edge("A", "B")
+        dag.add_edge("B", "C")
+        dag.add_edge("C", "A")
+
+        self.assertTrue(dag.has_cycle())
+        self.assertFalse(dag.is_acyclic())
+
+    def test_disconnected_graph_is_acyclic(self):
+        dag = CausalDAG()
+        dag.add_edge("A", "B")
+        dag.add_edge("C", "D")
+
+        self.assertTrue(dag.is_acyclic())
+
+    def test_duplicate_edge_is_not_counted_twice(self):
+            dag = CausalDAG()
+            dag.add_edge("A", "B")
+            dag.add_edge("A", "B")
+            self.assertEqual(dag.number_of_nodes(), 2)
+            self.assertEqual(dag.number_of_edges(), 1)
 
 if __name__ == "__main__":
     unittest.main()

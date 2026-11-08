@@ -12,6 +12,7 @@ def evaluate_uplift(
     control_level=0,
     treatment_col="discount_offered",
     outcome_col="purchased",
+    id_col=None,
 ) -> pd.DataFrame:
     """Calculate cumulative uplift gain for one treatment vs control.
 
@@ -30,16 +31,43 @@ def evaluate_uplift(
     if missing:
         raise ValueError(f"Missing required columns: {sorted(missing)}")
 
+    if id_col is not None:
+        if id_col not in data.columns:
+            raise ValueError(f"ID column not found: {id_col}")
+
+        if data[id_col].isna().any():
+            raise ValueError("ID column must not contain missing values")
+
+        output_columns = {
+            "rank",
+            "score",
+            "treatment",
+            "outcome",
+            "cumulative_treated",
+            "cumulative_control",
+            "cumulative_treated_outcomes",
+            "cumulative_control_outcomes",
+            "uplift_gain",
+        }
+
+        if id_col in output_columns:
+            raise ValueError("id_col must not conflict with output column names")
+
     if data[[treatment_col, outcome_col]].isna().any().any():
         raise ValueError("Treatment and outcome columns must not contain missing values")
 
     if not data[outcome_col].isin([0, 1]).all():
         raise ValueError("Outcome must be binary (0/1)")
 
-    scores = np.asarray(scores, dtype=float)
+    try:
+        scores = np.asarray(scores, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "scores must contain only numeric values"
+        ) from exc
+
     if len(scores) != len(data):
         raise ValueError("scores length must match data length")
-
     if not np.isfinite(scores).all():
         raise ValueError("scores must contain only finite values")
 
@@ -87,16 +115,25 @@ def evaluate_uplift(
         - cumulative_control * (n_treatment / n_control)
     )
 
-    return pd.DataFrame(
+    result = pd.DataFrame(
         {
             "rank": np.arange(1, len(comparison) + 1),
-            "score": comparison["_score"],
-            "treatment": comparison[treatment_col],
-            "outcome": comparison[outcome_col].astype(int),
-            "cumulative_treated": is_treatment.cumsum(),
-            "cumulative_control": is_control.cumsum(),
-            "cumulative_treated_outcomes": cumulative_treated,
-            "cumulative_control_outcomes": cumulative_control,
-            "uplift_gain": gain,
+            "score": comparison["_score"].to_numpy(),
+            "treatment": comparison[treatment_col].to_numpy(),
+            "outcome": comparison[outcome_col].astype(int).to_numpy(),
+            "cumulative_treated": is_treatment.cumsum().to_numpy(),
+            "cumulative_control": is_control.cumsum().to_numpy(),
+            "cumulative_treated_outcomes": cumulative_treated.to_numpy(),
+            "cumulative_control_outcomes": cumulative_control.to_numpy(),
+            "uplift_gain": gain.to_numpy(),
         }
     )
+
+    if id_col is not None:
+        result.insert(
+            1,
+            id_col,
+            comparison[id_col].to_numpy(),
+        )
+
+    return result
