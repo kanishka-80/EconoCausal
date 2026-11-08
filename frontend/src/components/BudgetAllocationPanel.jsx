@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { runBudgetOptimization } from '../services/api'
 
-const ALLOWED_DISCOUNTS = [0, 10, 20, 30]
+const ALLOWED_DISCOUNTS = [0, 5, 10, 20]
 
 const formatValue = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -22,7 +22,7 @@ export default function BudgetAllocationPanel({
   apiStatus,
 }) {
   const [budget, setBudget] = useState('1000')
-  const [discounts, setDiscounts] = useState('10,20,30')
+  const [discounts, setDiscounts] = useState('5,10,20')
   const [customerColumn, setCustomerColumn] = useState('')
   const [objective, setObjective] = useState('MAXIMIZE_UPLIFT')
   const [loading, setLoading] = useState(false)
@@ -60,7 +60,7 @@ export default function BudgetAllocationPanel({
           !ALLOWED_DISCOUNTS.includes(value),
       )
     ) {
-      setError('Allowed discounts sirf 0, 10, 20, 30 hain.')
+      setError('Allowed discounts sirf 0, 5, 10, 20 hain.')
       return
     }
 
@@ -111,7 +111,9 @@ export default function BudgetAllocationPanel({
       }
 
       if (!data.optimization_id || !data.status) {
-        throw new Error('Optimization response mein required fields missing hain.')
+        throw new Error(
+          'Optimization response mein required fields missing hain.',
+        )
       }
 
       const allocations = data.allocation ?? data.allocations ?? []
@@ -154,9 +156,9 @@ export default function BudgetAllocationPanel({
         id="discount-options"
         value={discounts}
         onChange={(event) => setDiscounts(event.target.value)}
-        placeholder="10,20,30"
+        placeholder="5,10,20"
       />
-      <small>Allowed values: 0, 10, 20, 30</small>
+      <small>Allowed values: 0, 5, 10, 20</small>
 
       <label htmlFor="optimization-objective">
         Optimization Objective
@@ -207,7 +209,7 @@ export default function BudgetAllocationPanel({
 
           {result.is_mock === true && (
             <p role="status">
-              Mock/scaffold output â€” not a validated budget recommendation.
+              Mock/scaffold output — not a validated budget recommendation.
             </p>
           )}
 
