@@ -1,9 +1,10 @@
+
 import { lazy, Suspense } from 'react'
 import { Database, AlertTriangle } from 'lucide-react'
 
 const Plot = lazy(() => import('react-plotly.js'))
 
-const COLORS = ['#63a5ff', '#43c6ac', '#b18cff', '#f5b95f', '#ef829c']
+const COLORS = ['#38bdf8', '#818cf8', '#c084fc', '#34d399', '#f59e0b', '#06b6d4']
 
 const numericValue = (value) => {
   if (value === null || value === undefined) return null
@@ -94,6 +95,30 @@ const calculateStats = (values) => {
   }
 }
 
+// NEW: Pearson correlation calculation
+const getCorrelation = (columnA, columnB, rows) => {
+  const pairs = rows.map((row) => [
+    numericValue(row[columnA.index]),
+    numericValue(row[columnB.index]),
+  ]).filter(([a, b]) => a !== null && b !== null)
+
+  if (pairs.length < 2) return 0
+
+  const meanA = pairs.reduce((sum, pair) => sum + pair[0], 0) / pairs.length
+  const meanB = pairs.reduce((sum, pair) => sum + pair[1], 0) / pairs.length
+
+  const numerator = pairs.reduce(
+    (sum, pair) => sum + (pair[0] - meanA) * (pair[1] - meanB), 0
+  )
+
+  const denominator = Math.sqrt(
+    pairs.reduce((sum, pair) => sum + (pair[0] - meanA) ** 2, 0) *
+    pairs.reduce((sum, pair) => sum + (pair[1] - meanB) ** 2, 0)
+  )
+
+  return denominator ? numerator / denominator : 0
+}
+
 function ChartCard({ title, subtitle, children, wide = false }) {
   return (
     <article className={`di-card ${wide ? 'di-card-wide' : ''}`}>
@@ -108,22 +133,22 @@ function ChartCard({ title, subtitle, children, wide = false }) {
   )
 }
 
-function Chart({ data, layout = {}, height = 300 }) {
+function Chart({ data, layout = {}, height = 210 }) {
   const baseLayout = {
     autosize: true,
     height,
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: '#aebed5', family: 'Inter, sans-serif', size: 11 },
-    margin: { l: 48, r: 18, t: 25, b: 55 },
-    xaxis: { gridcolor: '#263750', automargin: true },
-    yaxis: { gridcolor: '#263750', automargin: true },
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    font: { color: '#94a3b8', family: 'Inter, sans-serif', size: 11 },
+    margin: { l: 35, r: 10, t: 15, b: 35 },
+    xaxis: { gridcolor: 'rgba(255, 255, 255, 0.05)', automargin: true, tickfont: { color: '#64748b' } },
+    yaxis: { gridcolor: 'rgba(255, 255, 255, 0.05)', automargin: true, tickfont: { color: '#64748b' } },
     showlegend: false,
     ...layout,
   }
 
   return (
-    <Suspense fallback={<div className="di-loading">Loading visualization...</div>}>
+    <Suspense fallback={<div className="ec-muted-text" style={{ padding: '40px', textAlign: 'center' }}>Rendering chart...</div>}>
       <div className="di-plot">
         <Plot
           data={data}
@@ -147,16 +172,16 @@ export default function DatasetInsights({ headers = [], rows = [] }) {
       <section className="panel di-workspace" id="visualizations">
         <div className="di-heading">
           <div>
-            <span className="di-eyebrow">DATA EXPLORATION</span>
-            <h2>Dataset Insights</h2>
-            <p>Upload a CSV file to generate automatic data analysis.</p>
+            <span className="di-eyebrow">AUTOMATED DATA EXPLORATION</span>
+            <h2>Dataset Insights &amp; Health</h2>
+            <p>Upload a CSV file to generate automated exploratory data analysis and feature profiling.</p>
           </div>
-          <span className="di-status">Awaiting data</span>
+          <span className="di-status">Awaiting Dataset</span>
         </div>
         <div className="di-empty">
-          <Database size={30} />
-          <strong>No dataset loaded</strong>
-          <p>Your dataset statistics and visualizations will appear here after upload.</p>
+          <Database size={36} />
+          <strong>No Dataset Loaded</strong>
+          <p>Statistical summaries, distributions, and column profiles will render automatically upon CSV upload.</p>
         </div>
       </section>
     )
@@ -236,6 +261,61 @@ export default function DatasetInsights({ headers = [], rows = [] }) {
     stats: calculateStats(column.values),
   }))
 
+  // NEW: Additional visualization calculations
+  const correlationColumns = numericColumns.slice(0, 8)
+
+  const correlationMatrix = correlationColumns.map((columnA) =>
+    correlationColumns.map((columnB) =>
+      getCorrelation(columnA, columnB, rows)
+    )
+  )
+
+  const distributionColumns = numericColumns.slice(0, 3)
+
+  const scatterPairs = []
+
+  for (let i = 0; i < Math.min(numericColumns.length, 3); i++) {
+    for (let j = i + 1; j < Math.min(numericColumns.length, 3); j++) {
+      const a = numericColumns[i]
+      const b = numericColumns[j]
+
+      const points = rows.map((row) => ({
+        x: numericValue(row[a.index]),
+        y: numericValue(row[b.index]),
+      })).filter((point) => point.x !== null && point.y !== null)
+        .slice(0, 3000)
+
+      scatterPairs.push({ a, b, points })
+    }
+  }
+
+  const missingColumns = columns
+    .filter((column) => column.missing > 0)
+    .sort((a, b) => b.missing - a.missing)
+    .slice(0, 12)
+
+  const categoryPie = categoricalColumns[0]
+    ? (() => {
+        const counts = new Map()
+
+        categoricalColumns[0].values.forEach((value) => {
+          counts.set(value, (counts.get(value) || 0) + 1)
+        })
+
+        const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1])
+        const top = sorted.slice(0, 8)
+        const remaining = sorted.slice(8).reduce((sum, item) => sum + item[1], 0)
+
+        if (remaining > 0) top.push(['Other', remaining])
+
+        return {
+          column: categoricalColumns[0],
+          labels: top.map((item) => item[0]),
+          values: top.map((item) => item[1]),
+        }
+      })()
+    : null
+
   const chartableCount =
     numericColumns.length + categoricalColumns.length + dateColumns.length
 
@@ -243,50 +323,56 @@ export default function DatasetInsights({ headers = [], rows = [] }) {
     <section className="panel di-workspace" id="visualizations">
       <div className="di-heading">
         <div>
-          <span className="di-eyebrow">DATA EXPLORATION</span>
-          <h2>Dataset Insights</h2>
-          <p>Automatic analysis based on the detected columns in your uploaded CSV.</p>
+          <span className="di-eyebrow">AUTOMATED DATA EXPLORATION</span>
+          <h2>Dataset Insights &amp; Feature Health</h2>
+          <p>Automated statistical analysis and schema inference for causal readiness.</p>
         </div>
-        <span className="di-status">{rows.length.toLocaleString()} rows loaded</span>
+        <span className="di-status">{rows.length.toLocaleString()} Records Profiled</span>
       </div>
 
+      {/* Summary KPI Cards */}
       <div className="di-summary-grid">
         <div className="di-summary-card">
-          <span>Total rows</span>
+          <span>Total Records</span>
           <strong>{rows.length.toLocaleString()}</strong>
         </div>
         <div className="di-summary-card">
-          <span>Total columns</span>
+          <span>Detected Features</span>
           <strong>{headers.length}</strong>
         </div>
         <div className="di-summary-card">
-          <span>Missing cells</span>
-          <strong>{missingTotal.toLocaleString()}</strong>
+          <span>Missing Cells</span>
+          <strong style={{ color: missingTotal > 0 ? '#fbbf24' : '#34d399' }}>
+            {missingTotal.toLocaleString()}
+          </strong>
         </div>
         <div className="di-summary-card">
-          <span>Duplicate rows</span>
-          <strong>{duplicateCount.toLocaleString()}</strong>
+          <span>Duplicate Rows</span>
+          <strong style={{ color: duplicateCount > 0 ? '#fda4af' : '#34d399' }}>
+            {duplicateCount.toLocaleString()}
+          </strong>
         </div>
       </div>
 
+      {/* Column Type Badges */}
       <div className="di-type-summary">
-        <span>Numeric: <strong>{numericColumns.length}</strong></span>
-        <span>Categorical: <strong>{categoricalColumns.length}</strong></span>
-        <span>Date: <strong>{dateColumns.length}</strong></span>
+        <span>Numeric Features: <strong>{numericColumns.length}</strong></span>
+        <span>Categorical Factors: <strong>{categoricalColumns.length}</strong></span>
+        <span>Temporal Columns: <strong>{dateColumns.length}</strong></span>
         <span>Identifiers: <strong>{identifierColumns.length}</strong></span>
-        <span>Text: <strong>{columns.filter((column) => column.type === 'text').length}</strong></span>
+        <span>Text Columns: <strong>{columns.filter((c) => c.type === 'text').length}</strong></span>
       </div>
 
       <div className="di-section-title">
-        <h3>Visual analysis</h3>
-        <p>Charts are selected automatically from the detected data types.</p>
+        <h3>Feature Distributions</h3>
+        <p>Interactive exploratory charts generated from detected feature modalities.</p>
       </div>
 
       <div className="di-grid">
         {categoryCharts.map(({ column, entries }) => (
           <ChartCard
             key={column.name}
-            title={`${column.name} distribution`}
+            title={`${column.name} Distribution`}
             subtitle={`Top ${entries.length} categories by frequency`}
           >
             <Chart
@@ -294,7 +380,7 @@ export default function DatasetInsights({ headers = [], rows = [] }) {
                 type: 'bar',
                 x: entries.map((entry) => entry[0]),
                 y: entries.map((entry) => entry[1]),
-                marker: { color: COLORS[1] },
+                marker: { color: '#818cf8', opacity: 0.85 },
                 hovertemplate: '%{x}<br>Count: %{y}<extra></extra>',
               }]}
               layout={chartLayout}
@@ -305,14 +391,14 @@ export default function DatasetInsights({ headers = [], rows = [] }) {
         {numericCharts.map(({ column, values }) => (
           <ChartCard
             key={column.name}
-            title={`${column.name} distribution`}
-            subtitle={`Histogram of ${values.length.toLocaleString()} valid numeric values`}
+            title={`${column.name} Histogram`}
+            subtitle={`Distribution of ${values.length.toLocaleString()} valid numeric values`}
           >
             <Chart
               data={[{
                 type: 'histogram',
                 x: values.slice(0, 10000),
-                marker: { color: COLORS[column.index % COLORS.length] },
+                marker: { color: COLORS[column.index % COLORS.length], opacity: 0.8 },
                 nbinsx: 25,
                 hovertemplate: 'Range: %{x}<br>Count: %{y}<extra></extra>',
               }]}
@@ -320,10 +406,152 @@ export default function DatasetInsights({ headers = [], rows = [] }) {
           </ChartCard>
         ))}
 
+        {/* NEW: Correlation Heatmap */}
+        {correlationColumns.length >= 2 && (
+          <ChartCard
+            title="Feature Correlation Heatmap"
+            subtitle="Pearson correlation between numeric features"
+            wide
+          >
+            <Chart
+              height={300}
+              data={[{
+                type: 'heatmap',
+                z: correlationMatrix,
+                x: correlationColumns.map((column) => column.name),
+                y: correlationColumns.map((column) => column.name),
+                zmin: -1,
+                zmax: 1,
+                colorscale: 'RdBu',
+                reversescale: true,
+                hovertemplate: '%{y} vs %{x}<br>Correlation: %{z:.3f}<extra></extra>',
+                colorbar: { title: 'Correlation' },
+              }]}
+              layout={{
+                margin: { l: 100, r: 35, t: 15, b: 90 },
+                xaxis: { tickangle: -35 },
+              }}
+            />
+          </ChartCard>
+        )}
+
+        {/* NEW: Box Plots */}
+        {distributionColumns.map((column) => (
+          <ChartCard
+            key={`box-${column.name}`}
+            title={`${column.name} Box Plot`}
+            subtitle="Median, quartiles and potential outliers"
+          >
+            <Chart
+              data={[{
+                type: 'box',
+                y: column.values.slice(0, 5000),
+                name: column.name,
+                boxpoints: 'outliers',
+                marker: { color: '#818cf8' },
+              }]}
+            />
+          </ChartCard>
+        ))}
+
+        {/* NEW: Scatter Plots */}
+        {scatterPairs.map(({ a, b, points }) => (
+          <ChartCard
+            key={`scatter-${a.name}-${b.name}`}
+            title={`${a.name} vs ${b.name}`}
+            subtitle="Relationship between two numeric features"
+          >
+            <Chart
+              data={[{
+                type: 'scatter',
+                mode: 'markers',
+                x: points.map((point) => point.x),
+                y: points.map((point) => point.y),
+                marker: { color: '#38bdf8', size: 5, opacity: 0.5 },
+                hovertemplate: 'X: %{x}<br>Y: %{y}<extra></extra>',
+              }]}
+              layout={{
+                xaxis: { title: a.name },
+                yaxis: { title: b.name },
+              }}
+            />
+          </ChartCard>
+        ))}
+
+        {/* NEW: Violin Plots */}
+        {distributionColumns.map((column) => (
+          <ChartCard
+            key={`violin-${column.name}`}
+            title={`${column.name} Violin Plot`}
+            subtitle="Distribution density and statistical spread"
+          >
+            <Chart
+              data={[{
+                type: 'violin',
+                y: column.values.slice(0, 5000),
+                name: column.name,
+                box: { visible: true },
+                meanline: { visible: true },
+                points: false,
+                line: { color: '#c084fc' },
+                fillcolor: 'rgba(192, 132, 252, 0.25)',
+              }]}
+            />
+          </ChartCard>
+        ))}
+
+        {/* NEW: Missing Values Chart */}
+        {missingColumns.length > 0 && (
+          <ChartCard
+            title="Missing Values Analysis"
+            subtitle="Features with missing records"
+            wide
+          >
+            <Chart
+              height={Math.max(210, missingColumns.length * 32)}
+              data={[{
+                type: 'bar',
+                orientation: 'h',
+                x: missingColumns.map((column) => column.missing),
+                y: missingColumns.map((column) => column.name),
+                marker: { color: '#f59e0b' },
+                hovertemplate: '%{y}<br>Missing: %{x}<extra></extra>',
+              }]}
+              layout={{
+                margin: { l: 120, r: 20, t: 10, b: 35 },
+                yaxis: { autorange: 'reversed' },
+              }}
+            />
+          </ChartCard>
+        )}
+
+        {/* NEW: Donut Chart */}
+        {categoryPie && (
+          <ChartCard
+            title={`${categoryPie.column.name} Category Breakdown`}
+            subtitle="Proportion of categorical values"
+          >
+            <Chart
+              data={[{
+                type: 'pie',
+                labels: categoryPie.labels,
+                values: categoryPie.values,
+                hole: 0.55,
+                textinfo: 'percent',
+                hovertemplate: '%{label}<br>Count: %{value}<br>%{percent}<extra></extra>',
+              }]}
+              layout={{
+                showlegend: true,
+                legend: { orientation: 'h', y: -0.2 },
+              }}
+            />
+          </ChartCard>
+        )}
+
         {dateChart && (
           <ChartCard
-            title={`${dateChart.column.name} values`}
-            subtitle="Date values in the order they appear in the CSV"
+            title={`${dateChart.column.name} Timeline`}
+            subtitle="Temporal ordering of records as ingested"
             wide
           >
             <Chart
@@ -332,12 +560,12 @@ export default function DatasetInsights({ headers = [], rows = [] }) {
                 mode: 'markers',
                 x: dateChart.points.map((point) => point.date),
                 y: dateChart.points.map((point) => point.row),
-                marker: { color: COLORS[0], size: 6 },
+                marker: { color: '#38bdf8', size: 6 },
                 hovertemplate: '%{x}<br>CSV row: %{y}<extra></extra>',
               }]}
               layout={{
-                xaxis: { title: dateChart.column.name, gridcolor: '#263750' },
-                yaxis: { title: 'CSV row number', gridcolor: '#263750' },
+                xaxis: { title: dateChart.column.name, gridcolor: 'rgba(255, 255, 255, 0.05)' },
+                yaxis: { title: 'Row Index', gridcolor: 'rgba(255, 255, 255, 0.05)' },
               }}
             />
           </ChartCard>
@@ -346,37 +574,38 @@ export default function DatasetInsights({ headers = [], rows = [] }) {
         {chartableCount === 0 && (
           <div className="di-empty">
             <AlertTriangle size={26} />
-            <strong>No suitable chart columns detected</strong>
-            <p>This file may contain only identifiers, free text or empty columns.</p>
+            <strong>No Plottable Columns Detected</strong>
+            <p>Dataset contains identifiers or text data with no numeric or categorical distributions.</p>
           </div>
         )}
       </div>
 
+      {/* Numeric Stats Table */}
       {numericStats.length > 0 && (
         <>
           <div className="di-section-title">
-            <h3>Numeric column statistics</h3>
-            <p>Calculated from valid numeric values in each detected numeric column.</p>
+            <h3>Parametric &amp; Non-Parametric Statistics</h3>
+            <p>Mean, median, range, and dispersion for all numeric variables.</p>
           </div>
-          <div className="di-table-wrap">
+          <div className="table-scroll">
             <table className="di-table">
               <thead>
                 <tr>
-                  <th>Column</th>
-                  <th>Valid values</th>
+                  <th>Feature Column</th>
+                  <th>Valid Count</th>
                   <th>Mean</th>
                   <th>Median</th>
-                  <th>Minimum</th>
-                  <th>Maximum</th>
-                  <th>Std. deviation</th>
+                  <th>Min</th>
+                  <th>Max</th>
+                  <th>Std Deviation</th>
                 </tr>
               </thead>
               <tbody>
                 {numericStats.map(({ column, stats }) => (
                   <tr key={column.name}>
-                    <td>{column.name}</td>
+                    <td style={{ fontWeight: 600, color: '#ffffff' }}>{column.name}</td>
                     <td>{stats.count.toLocaleString()}</td>
-                    <td>{format(stats.mean)}</td>
+                    <td style={{ color: '#38bdf8' }}>{format(stats.mean)}</td>
                     <td>{format(stats.median)}</td>
                     <td>{format(stats.min)}</td>
                     <td>{format(stats.max)}</td>
@@ -389,26 +618,54 @@ export default function DatasetInsights({ headers = [], rows = [] }) {
         </>
       )}
 
+      {/* Schema Profile */}
       <div className="di-section-title">
-        <h3>Column profile</h3>
-        <p>Detected type, missing cells and distinct values for every column.</p>
+        <h3>Feature Dictionary &amp; Schema Profile</h3>
+        <p>Inferred data types, null cell rates, and cardinality for all variables.</p>
       </div>
-      <div className="di-table-wrap">
+      <div className="table-scroll">
         <table className="di-table">
           <thead>
             <tr>
-              <th>Column</th>
-              <th>Detected type</th>
-              <th>Missing</th>
-              <th>Unique values</th>
+              <th>Column Name</th>
+              <th>Inferred Type</th>
+              <th>Missing Cells</th>
+              <th>Unique Values</th>
             </tr>
           </thead>
           <tbody>
             {columns.map((column) => (
               <tr key={column.name}>
-                <td>{column.name}</td>
-                <td><span className="di-type-tag">{column.type}</span></td>
-                <td>{column.missing.toLocaleString()}</td>
+                <td style={{ fontWeight: 600, color: '#ffffff' }}>{column.name}</td>
+                <td>
+                  <span
+                    className="di-type-tag"
+                    style={{
+                      background:
+                        column.type === 'numeric'
+                          ? 'rgba(56, 189, 248, 0.15)'
+                          : column.type === 'categorical'
+                          ? 'rgba(129, 140, 248, 0.15)'
+                          : column.type === 'date'
+                          ? 'rgba(52, 211, 153, 0.15)'
+                          : 'rgba(100, 116, 139, 0.15)',
+                      color:
+                        column.type === 'numeric'
+                          ? '#38bdf8'
+                          : column.type === 'categorical'
+                          ? '#818cf8'
+                          : column.type === 'date'
+                          ? '#34d399'
+                          : '#94a3b8',
+                      borderColor: 'transparent'
+                    }}
+                  >
+                    {column.type}
+                  </span>
+                </td>
+                <td style={{ color: column.missing > 0 ? '#fbbf24' : 'var(--text-muted)' }}>
+                  {column.missing.toLocaleString()}
+                </td>
                 <td>{column.unique.toLocaleString()}</td>
               </tr>
             ))}
@@ -417,9 +674,7 @@ export default function DatasetInsights({ headers = [], rows = [] }) {
       </div>
 
       <p className="di-disclaimer">
-        These are descriptive statistics and visualizations, not causal estimates.
-        Identifier columns are excluded from numeric charts. Date and type detection
-        is heuristic and should be checked before making decisions.
+        Exploratory statistics only. Inferred schema types reflect heuristics to guide causal feature selection and confounder adjustments.
       </p>
     </section>
   )
