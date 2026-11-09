@@ -4,10 +4,12 @@ import {
   checkApiHealth,
   uploadDataset,
   getDatasetSummary,
-  resetDataset
+  resetDataset,
+  getAnalysisHistory
 } from './services/api'
 import CausalAnalysisPanel from './components/CausalAnalysisPanel'
 import BudgetAllocationPanel from './components/BudgetAllocationPanel'
+import AnalysisHistory from './components/AnalysisHistory'
 
 const DatasetInsights = lazy(() => import('./components/DatasetInsights'))
 const Plot = lazy(() => import('react-plotly.js'))
@@ -25,6 +27,7 @@ import {
   FileSpreadsheet,
   FileText,
   LayoutDashboard,
+  History,
   Menu,
   RefreshCw,
   Search,
@@ -199,12 +202,16 @@ function App() {
   const [summaryStatus, setSummaryStatus] = useState('Waiting for dataset')
   const [backendSummary, setBackendSummary] = useState(null)
   const [apiLatency, setApiLatency] = useState(null)
+  const [notifications, setNotifications] = useState([])
+  const [notificationOpen, setNotificationOpen] = useState(false)
+  const [readNotificationIds, setReadNotificationIds] = useState([])
 
   const pageTitles = {
     dashboard: 'Dashboard',
     upload: 'Upload & Preview',
     analysis: 'Causal Results',
     budget: 'Budget Allocation',
+    history: 'Analysis History',
     settings: 'Settings'
   }
 
@@ -377,8 +384,47 @@ function App() {
     { id: 'upload', label: 'Upload & Preview', icon: CloudUpload },
     { id: 'analysis', label: 'Causal Results', icon: Workflow },
     { id: 'budget', label: 'Budget Allocation', icon: BarChart3 },
+    { id: 'history', label: 'Analysis History', icon: History },
     { id: 'settings', label: 'Settings', icon: Settings }
   ]
+
+  const loadNotifications = async () => {
+    try {
+      const response = await getAnalysisHistory()
+      setNotifications(Array.isArray(response?.data) ? response.data.slice(0, 8) : [])
+    } catch (err) {
+      console.error('Unable to load notifications:', err)
+    }
+  }
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('econocausal-read-notifications') || '[]')
+      if (Array.isArray(saved)) setReadNotificationIds(saved)
+    } catch {
+      setReadNotificationIds([])
+    }
+    loadNotifications()
+  }, [])
+
+  const unreadNotificationCount = notifications.filter(
+    (item) => item.id && !readNotificationIds.includes(item.id)
+  ).length
+
+  const markNotificationsRead = () => {
+    const ids = notifications.map((item) => item.id).filter(Boolean)
+    const next = [...new Set([...readNotificationIds, ...ids])]
+    setReadNotificationIds(next)
+    localStorage.setItem('econocausal-read-notifications', JSON.stringify(next))
+  }
+
+  const handleNotificationClick = (record) => {
+    const next = [...new Set([...readNotificationIds, record.id])]
+    setReadNotificationIds(next)
+    localStorage.setItem('econocausal-read-notifications', JSON.stringify(next))
+    setNotificationOpen(false)
+    handleNavClick('history')
+  }
 
   const handleNavClick = (pageId) => {
     setActivePage(pageId)
@@ -523,14 +569,196 @@ function App() {
               <CircleHelp size={18} />
             </button>
 
-            <button
-              className="icon-button"
-              aria-label="Notifications"
-              title="Notifications"
-              type="button"
-            >
-              <Bell size={18} />
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                className="icon-button"
+                aria-label="Notifications"
+                title="Notifications"
+                type="button"
+                onClick={async () => {
+                  const next = !notificationOpen
+                  setNotificationOpen(next)
+                  if (next) await loadNotifications()
+                }}
+                style={{ position: 'relative' }}
+              >
+                <Bell size={18} />
+                {unreadNotificationCount > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '-5px',
+                    right: '-5px',
+                    minWidth: '17px',
+                    height: '17px',
+                    padding: '0 4px',
+                    borderRadius: '20px',
+                    background: '#ef4444',
+                    color: '#fff',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    display: 'grid',
+                    placeItems: 'center'
+                  }}>
+                    {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                  </span>
+                )}
+              </button>
+
+              {notificationOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 12px)',
+                  right: 0,
+                  width: 'min(360px, calc(100vw - 32px))',
+                  maxHeight: '430px',
+                  overflowY: 'auto',
+                  zIndex: 1000,
+                  padding: '14px',
+                  border: '1px solid var(--border-color, #334155)',
+                  borderRadius: '12px',
+                  background: 'var(--panel-bg, #111827)',
+                  boxShadow: '0 12px 35px rgba(0,0,0,0.3)',
+                  color: 'var(--text-primary, #f8fafc)'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '12px'
+                  }}>
+                    <strong>Notifications</strong>
+                    <button
+                      type="button"
+                      onClick={markNotificationsRead}
+                      style={{
+                        border: 0,
+                        background: 'transparent',
+                        color: 'var(--accent-blue, #38bdf8)',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      Mark all as read
+                    </button>
+                  </div>
+
+                  {notifications.length === 0 ? (
+                    <div style={{
+                      padding: '24px 10px',
+                      textAlign: 'center',
+                      color: 'var(--text-muted, #94a3b8)',
+                      fontSize: '13px'
+                    }}>
+                      <Bell size={25} style={{ marginBottom: '8px' }} />
+                      <p>No analysis notifications yet.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gap: '8px' }}>
+                      {notifications.map((record) => {
+                        const unread = record.id && !readNotificationIds.includes(record.id)
+                        const status = String(record.status || 'INCOMPLETE').toUpperCase()
+                        const isSuccessful = status === 'SUCCESSFUL'
+                        const isFailed = status === 'FAILED'
+
+                        return (
+                          <button
+                            key={record.id}
+                            type="button"
+                            onClick={() => handleNotificationClick(record)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '10px',
+                              width: '100%',
+                              padding: '11px',
+                              textAlign: 'left',
+                              border: '1px solid var(--border-color, #334155)',
+                              borderRadius: '9px',
+                              background: unread
+                                ? 'var(--hover-bg, rgba(56,189,248,0.08))'
+                                : 'transparent',
+                              color: 'inherit',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span style={{ paddingTop: '2px' }}>
+                              {isSuccessful ? (
+                                <CheckCircle2 size={18} color="#22c55e" />
+                              ) : isFailed ? (
+                                <X size={18} color="#ef4444" />
+                              ) : (
+                                <Activity size={18} color="#f59e0b" />
+                              )}
+                            </span>
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                              <strong style={{ display: 'block', fontSize: '13px' }}>
+                                {isSuccessful
+                                  ? 'Analysis Completed'
+                                  : isFailed
+                                  ? 'Analysis Failed'
+                                  : 'Analysis Incomplete'}
+                              </strong>
+                              <span style={{
+                                display: 'block',
+                                marginTop: '3px',
+                                fontSize: '12px',
+                                color: 'var(--text-muted, #94a3b8)'
+                              }}>
+                                {record.analysis_type === 'CAUSAL'
+                                  ? 'Causal Analysis'
+                                  : 'Budget Optimization'} · {record.dataset_name || 'Unknown dataset'}
+                              </span>
+                              <span style={{
+                                display: 'block',
+                                marginTop: '4px',
+                                fontSize: '11px',
+                                color: 'var(--text-muted, #94a3b8)'
+                              }}>
+                                {record.created_at
+                                  ? new Date(record.created_at).toLocaleString()
+                                  : 'Date unavailable'}
+                              </span>
+                            </span>
+                            {unread && (
+                              <span style={{
+                                width: '7px',
+                                height: '7px',
+                                marginTop: '5px',
+                                borderRadius: '50%',
+                                background: '#38bdf8',
+                                flexShrink: 0
+                              }} />
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotificationOpen(false)
+                      handleNavClick('history')
+                    }}
+                    style={{
+                      width: '100%',
+                      marginTop: '12px',
+                      padding: '10px',
+                      border: '1px solid var(--border-color, #334155)',
+                      borderRadius: '8px',
+                      background: 'transparent',
+                      color: 'var(--accent-blue, #38bdf8)',
+                      cursor: 'pointer',
+                      fontWeight: 600
+                    }}
+                  >
+                    View All Analysis History
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="profile">
               <div className="avatar">EC</div>
@@ -1131,6 +1359,19 @@ function App() {
         {/* ------------------------------------------------------------------
             PAGE 5: SETTINGS
             ------------------------------------------------------------------ */}
+        {activePage === 'history' && (
+          <div className="page-view">
+            <div className="page-header">
+              <span className="page-kicker">RECORDS</span>
+              <h1 className="page-title">Analysis History</h1>
+              <p className="page-description">Review saved causal analysis and budget optimization runs.</p>
+            </div>
+            <section className="panel">
+              <AnalysisHistory />
+            </section>
+          </div>
+        )}
+
         {activePage === 'settings' && (
           <div className="page-view">
             <div className="page-header">

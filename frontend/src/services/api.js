@@ -125,3 +125,53 @@ export async function resetDataset() {
 
   return handleResponse(response)
 }
+
+// Analysis History API
+export async function getAnalysisHistory(params = {}) {
+  const query = new URLSearchParams()
+  if (params.search) query.set('search', params.search)
+  if (params.status) query.set('status', params.status)
+  if (params.analysis_type) query.set('analysis_type', params.analysis_type)
+
+  const suffix = query.toString() ? `?${query.toString()}` : ''
+  return handleResponse(await fetch(`${API_BASE_URL}/history${suffix}`))
+}
+
+export async function getAnalysisHistoryDetail(id) {
+  return handleResponse(
+    await fetch(`${API_BASE_URL}/history/${encodeURIComponent(id)}`)
+  )
+}
+
+export async function createAnalysisHistory(payload) {
+  return handleResponse(await fetch(`${API_BASE_URL}/history`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }))
+}
+
+export async function updateAnalysisHistory(id, payload) {
+  return handleResponse(await fetch(
+    `${API_BASE_URL}/history/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }
+  ))
+}
+
+export async function deleteAnalysisHistory(id) {
+  return handleResponse(await fetch(
+    `${API_BASE_URL}/history/${encodeURIComponent(id)}`,
+    { method: 'DELETE' }
+  ))
+}
+
+export async function clearAllAnalysisHistory() {
+  return handleResponse(await fetch(
+    `${API_BASE_URL}/history`,
+    { method: 'DELETE' }
+  ))
+}
