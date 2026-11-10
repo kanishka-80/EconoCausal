@@ -125,3 +125,7 @@ export async function resetDataset() {
 
   return handleResponse(response)
 }
+
+export const getAnalysisHistory = async () => {
+  return [];
+};

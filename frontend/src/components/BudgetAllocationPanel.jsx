@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-import { useState } from 'react'
-import { runBudgetOptimization } from '../services/api'
-
-=======
 import { useState, useMemo, lazy, Suspense } from 'react'
 import { runBudgetOptimization } from '../services/api'
 import {
@@ -22,7 +17,6 @@ import {
 const Plot = lazy(() => import('react-plotly.js'))
 
 const ALLOWED_DISCOUNTS = [5, 10, 20]
->>>>>>> origin/khushi-work
 const DISPLAY_LIMIT = 100
 
 const formatValue = (value) => {
@@ -45,21 +39,13 @@ const getStatusClass = (status) => {
   if (
     value.includes('feasible') ||
     value.includes('complete') ||
-<<<<<<< HEAD
-    value === 'success'
-=======
     value === 'success' ||
     value.includes('optimal')
->>>>>>> origin/khushi-work
   ) {
     return 'success'
   }
 
-<<<<<<< HEAD
-  if (value.includes('fail') || value.includes('error')) {
-=======
   if (value.includes('fail') || value.includes('error') || value.includes('infeasible')) {
->>>>>>> origin/khushi-work
     return 'danger'
   }
 
@@ -76,20 +62,12 @@ export default function BudgetAllocationPanel({
   apiStatus,
 }) {
   const [activeTab, setActiveTab] = useState('Configure')
-<<<<<<< HEAD
-  const [budget, setBudget] = useState('50000')
-  const [discounts, setDiscounts] = useState('10,20,30')
-=======
   const [budget, setBudget] = useState('1000')
   const [discounts, setDiscounts] = useState('5,10,20')
->>>>>>> origin/khushi-work
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
 
-<<<<<<< HEAD
-  const tabs = ['Configure', 'Results', 'Customer Allocation']
-=======
   // Allocation table filters
   const [customerSearch, setCustomerSearch] = useState('')
   const [discountFilter, setDiscountFilter] = useState('all')
@@ -116,7 +94,6 @@ export default function BudgetAllocationPanel({
     if (next.length === 0) next = [val] // keep at least one
     setDiscounts(next.join(','))
   }
->>>>>>> origin/khushi-work
 
   const optimize = async () => {
     if (loading) return
@@ -138,21 +115,12 @@ export default function BudgetAllocationPanel({
     }
 
     if (!Number.isFinite(budgetValue) || budgetValue <= 0) {
-<<<<<<< HEAD
-      setError('Marketing budget must be a positive number.')
-=======
       setError('Budget must be a positive number.')
->>>>>>> origin/khushi-work
       return
     }
 
     if (
       discountValues.length === 0 ||
-<<<<<<< HEAD
-      discountValues.some((value) => !Number.isFinite(value) || value <= 0)
-    ) {
-      setError('Please provide valid positive discount values (e.g. 10, 20, 30).')
-=======
       discountValues.some(
         (value) =>
           !Number.isFinite(value) ||
@@ -160,7 +128,6 @@ export default function BudgetAllocationPanel({
       )
     ) {
       setError('Allowed discounts are 5, 10, and 20 only.')
->>>>>>> origin/khushi-work
       return
     }
 
@@ -169,47 +136,12 @@ export default function BudgetAllocationPanel({
       return
     }
 
-<<<<<<< HEAD
-=======
     // Find customer_id column in uploaded CSV
->>>>>>> origin/khushi-work
     if (!Array.isArray(headers) || !Array.isArray(rows) || rows.length === 0) {
       setError('Please upload a valid CSV dataset first.')
       return
     }
 
-<<<<<<< HEAD
-    // Flexible customer ID column detection across arbitrary datasets
-    const standardIdNames = ['customer_id', 'user_id', 'id', 'cust_id', 'client_id']
-    let customerIdIndex = headers.findIndex((header) =>
-      standardIdNames.includes(String(header).trim().toLowerCase()),
-    )
-
-    // Fallback: check if any column contains 'id'
-    if (customerIdIndex === -1) {
-      customerIdIndex = headers.findIndex((header) =>
-        String(header).trim().toLowerCase().includes('id'),
-      )
-    }
-
-    // Fallback: default to the first column if no explicit ID column is present
-    if (customerIdIndex === -1) {
-      customerIdIndex = 0
-    }
-
-    // Extract customer IDs
-    const rawCustomerIds = rows
-      .map((row) => String(row[customerIdIndex] ?? '').trim())
-      .filter((id) => id.length > 0)
-
-    if (rawCustomerIds.length === 0) {
-      setError('No valid customer IDs could be extracted from the uploaded dataset.')
-      return
-    }
-
-    // Deduplicate customer IDs while preserving row order
-    const customerIds = Array.from(new Set(rawCustomerIds))
-=======
     const customerIdIndex = headers.findIndex(
       (header) =>
         String(header).trim().toLowerCase() === 'customer_id',
@@ -235,7 +167,6 @@ export default function BudgetAllocationPanel({
       setError('The uploaded CSV contains duplicate customer IDs.')
       return
     }
->>>>>>> origin/khushi-work
 
     setLoading(true)
 
@@ -250,13 +181,6 @@ export default function BudgetAllocationPanel({
       const data = response?.data
 
       if (!data || typeof data !== 'object') {
-<<<<<<< HEAD
-        throw new Error('Backend did not return a valid optimization response.')
-      }
-
-      if (!data.optimization_id || !data.status) {
-        throw new Error('Optimization response is missing required fields.')
-=======
         throw new Error(
           'The backend did not return a valid optimization response.',
         )
@@ -266,17 +190,12 @@ export default function BudgetAllocationPanel({
         throw new Error(
           'Required fields are missing from the optimization response.',
         )
->>>>>>> origin/khushi-work
       }
 
       const allocations = data.allocation ?? data.allocations ?? []
 
       if (!Array.isArray(allocations)) {
-<<<<<<< HEAD
-        throw new Error('Backend allocation format is invalid.')
-=======
         throw new Error('The backend allocation format is invalid.')
->>>>>>> origin/khushi-work
       }
 
       setResult({
@@ -287,27 +206,14 @@ export default function BudgetAllocationPanel({
 
       setActiveTab('Results')
     } catch (err) {
-<<<<<<< HEAD
-      setError(err.message || 'Failed to complete budget optimization.')
-=======
       setError(
         err.message || 'Budget optimization could not be completed.',
       )
->>>>>>> origin/khushi-work
     } finally {
       setLoading(false)
     }
   }
 
-<<<<<<< HEAD
-  const allocations = result?.allocation ?? []
-
-  const treatedAllocations = allocations.filter(
-    (item) => Number(item.assigned_discount) > 0,
-  )
-
-  const visibleAllocations = treatedAllocations.slice(0, DISPLAY_LIMIT)
-=======
   const allocations = useMemo(() => result?.allocation ?? [], [result])
 
   const treatedAllocations = useMemo(() => {
@@ -348,31 +254,15 @@ export default function BudgetAllocationPanel({
       spends: [0, spend5, spend10, spend20]
     }
   }, [allocations])
->>>>>>> origin/khushi-work
 
   const limitations = [
     ...(Array.isArray(result?.limitations) ? result.limitations : []),
     ...(typeof result?.limitations === 'string' ? [result.limitations] : []),
-<<<<<<< HEAD
-    ...(Array.isArray(result?.metadata?.limitations)
-      ? result.metadata.limitations
-      : []),
-=======
     ...(Array.isArray(result?.metadata?.limitations) ? result.metadata.limitations : []),
->>>>>>> origin/khushi-work
   ]
 
   return (
     <div className="ec-panel">
-<<<<<<< HEAD
-      {/* Panel Header */}
-      <div className="ec-panel-intro">
-        <div>
-          <span className="ec-eyebrow">BUDGET OPTIMIZATION</span>
-          <h3>Allocation Workspace</h3>
-          <p>
-            Configure marketing spend and review backend optimization results.
-=======
       {/* Intro Header */}
       <div className="ec-panel-intro">
         <div>
@@ -380,7 +270,6 @@ export default function BudgetAllocationPanel({
           <h3>Marketing Budget Allocator</h3>
           <p>
             Allocate dynamic discount treatments across eligible customer segments to maximize aggregate causal uplift.
->>>>>>> origin/khushi-work
           </p>
         </div>
 
@@ -390,45 +279,11 @@ export default function BudgetAllocationPanel({
           }`}
         >
           <span />
-<<<<<<< HEAD
-          {apiStatus === 'Connected'
-            ? 'Backend connected'
-            : 'Backend unavailable'}
-=======
           {apiStatus === 'Connected' ? 'Optimizer Connected' : 'Optimizer Offline'}
->>>>>>> origin/khushi-work
         </span>
       </div>
 
       {/* Tabs */}
-<<<<<<< HEAD
-      <div
-        className="ec-tabs"
-        role="tablist"
-        aria-label="Budget allocation sections"
-      >
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab}
-            className={activeTab === tab ? 'active' : ''}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {error && (
-        <div className="ec-alert error" role="alert">
-          {error}
-        </div>
-      )}
-
-      {/* Configure Tab */}
-=======
       <div className="ec-tabs" role="tablist" aria-label="Budget allocation sections">
         {tabs.map((tab) => {
           const Icon = tab.icon
@@ -457,65 +312,10 @@ export default function BudgetAllocationPanel({
       )}
 
       {/* Tab: CONFIGURE */}
->>>>>>> origin/khushi-work
       {activeTab === 'Configure' && (
         <div className="ec-tab-content">
           <div className="ec-section-heading">
             <div>
-<<<<<<< HEAD
-              <h4>Optimization settings</h4>
-              <p>
-                Choose the marketing budget and target discount tiers.
-              </p>
-            </div>
-            <span className="ec-step-label">STEP 01</span>
-          </div>
-
-          <div className="ec-alert info">
-            <strong>Customer data source</strong>
-            <p>
-              Customer IDs are dynamically extracted from the uploaded CSV and matched against
-              causal treatment-effect estimates.
-            </p>
-            <p>
-              Uploaded customer records: {rows.length.toLocaleString()}
-            </p>
-          </div>
-
-          <div className="ec-form-grid">
-            <label className="ec-field">
-              <span>Marketing budget</span>
-              <input
-                type="number"
-                min="0.01"
-                step="any"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="Enter budget (e.g. 50000)"
-              />
-              <small>Enter a positive budget amount.</small>
-            </label>
-
-            <label className="ec-field">
-              <span>Available discounts</span>
-              <input
-                value={discounts}
-                onChange={(e) => setDiscounts(e.target.value)}
-                placeholder="10,20,30"
-              />
-              <small>
-                Enter positive numeric discounts separated by commas (e.g. 10, 20, 30).
-              </small>
-            </label>
-          </div>
-
-          <div className="ec-alert info">
-            <strong>Optimization objective: Maximize Uplift</strong>
-            <p>
-              The optimizer solves a constrained knapsack MILP to maximize incremental conversion
-              uplift within the approved budget.
-            </p>
-=======
               <h4>Budget &amp; Discount Configuration</h4>
               <p>Specify overall marketing capital and available promotional tiers.</p>
             </div>
@@ -605,34 +405,19 @@ export default function BudgetAllocationPanel({
                 </p>
               </div>
             </div>
->>>>>>> origin/khushi-work
           </div>
 
           <div className="ec-action-row">
             <span className="ec-muted-text">
               {apiStatus === 'Connected'
-<<<<<<< HEAD
-                ? 'Ready to submit'
-                : 'Backend connection required'}
-=======
                 ? `Ready to evaluate ${rows.length.toLocaleString()} uploaded customer records`
                 : 'Connect backend API to enable optimization'}
->>>>>>> origin/khushi-work
             </span>
 
             <button
               type="button"
               className="ec-primary-button"
               onClick={optimize}
-<<<<<<< HEAD
-              disabled={
-                loading ||
-                apiStatus !== 'Connected' ||
-                rows.length === 0
-              }
-            >
-              {loading ? 'Optimizing...' : 'Run budget optimization'}
-=======
               disabled={loading || apiStatus !== 'Connected' || rows.length === 0}
             >
               {loading ? (
@@ -646,17 +431,10 @@ export default function BudgetAllocationPanel({
                   <span>Run Budget Optimization</span>
                 </>
               )}
->>>>>>> origin/khushi-work
             </button>
           </div>
 
           {loading && (
-<<<<<<< HEAD
-            <p className="ec-loading" role="status" aria-live="polite">
-              Optimization is running. Processing the dataset and solving allocation constraints may
-              take around 30–60 seconds. Please wait.
-            </p>
-=======
             <div className="ec-loading" role="status" aria-live="polite">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <strong style={{ color: '#ffffff' }}>Executing Budget Solver</strong>
@@ -665,31 +443,15 @@ export default function BudgetAllocationPanel({
                 </span>
               </div>
             </div>
->>>>>>> origin/khushi-work
           )}
         </div>
       )}
 
-<<<<<<< HEAD
-      {/* Results Tab */}
-=======
       {/* Tab: RESULTS */}
->>>>>>> origin/khushi-work
       {activeTab === 'Results' && (
         <div className="ec-tab-content">
           {!result ? (
             <div className="ec-empty-state">
-<<<<<<< HEAD
-              <h4>No optimization results yet</h4>
-              <p>
-                Configure your budget and run optimization to view results.
-              </p>
-              <button
-                className="ec-secondary-button"
-                onClick={() => setActiveTab('Configure')}
-              >
-                Configure optimization
-=======
               <BarChart3 size={36} />
               <h4>No Optimization Results Yet</h4>
               <p>Configure marketing budget and discount tiers, then run optimization to inspect allocations.</p>
@@ -700,19 +462,12 @@ export default function BudgetAllocationPanel({
                 onClick={() => setActiveTab('Configure')}
               >
                 Configure Budget
->>>>>>> origin/khushi-work
               </button>
             </div>
           ) : (
             <>
               {result.is_mock === true && (
                 <div className="ec-alert warning" role="status">
-<<<<<<< HEAD
-                  <strong>Mock / scaffold output</strong>
-                  <p>
-                    This result should not be treated as a validated recommendation.
-                  </p>
-=======
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
                     <div>
@@ -720,55 +475,19 @@ export default function BudgetAllocationPanel({
                       <p>This response was generated by the backend demonstration solver.</p>
                     </div>
                   </div>
->>>>>>> origin/khushi-work
                 </div>
               )}
 
               <div className="ec-result-heading">
                 <div>
-<<<<<<< HEAD
-                  <h4>Optimization results</h4>
-                  <p>
-                    Summary of the optimization response returned by the backend solver.
-                  </p>
-                </div>
-
-=======
                   <h4>Optimization Policy Results</h4>
                   <p>Aggregated spend and expected uplift computed by the backend optimizer.</p>
                 </div>
->>>>>>> origin/khushi-work
                 <span className={`ec-status ${getStatusClass(result.status)}`}>
                   {result.status}
                 </span>
               </div>
 
-<<<<<<< HEAD
-              <div className="ec-metric-grid">
-                <div className="ec-metric-card">
-                  <span>Total spend</span>
-                  <strong>{formatValue(result.total_spend)}</strong>
-                  <small>Backend-reported spend</small>
-                </div>
-
-                <div className="ec-metric-card">
-                  <span>Unused budget</span>
-                  <strong>{formatValue(result.unused_budget)}</strong>
-                  <small>Remaining budget</small>
-                </div>
-
-                <div className="ec-metric-card">
-                  <span>Expected uplift</span>
-                  <strong>
-                    {formatValue(
-                      result.total_expected_uplift ?? result.objective_value,
-                    )}
-                  </strong>
-                  <small>Cumulative incremental conversions</small>
-                </div>
-              </div>
-
-=======
               {/* KPI Cards */}
               <div className="ec-metric-grid">
                 <div className="ec-metric-card">
@@ -897,7 +616,6 @@ export default function BudgetAllocationPanel({
               )}
 
               {/* Detail Breakdown Cards */}
->>>>>>> origin/khushi-work
               <div className="ec-detail-grid">
                 <div className="ec-detail-card">
                   <span>Optimization ID</span>
@@ -905,39 +623,6 @@ export default function BudgetAllocationPanel({
                 </div>
 
                 <div className="ec-detail-card">
-<<<<<<< HEAD
-                  <span>Result type</span>
-                  <strong>
-                    {result.is_mock === true
-                      ? 'Mock output'
-                      : 'Backend solver response'}
-                  </strong>
-                </div>
-
-                <div className="ec-detail-card">
-                  <span>Target cohort size</span>
-                  <strong>
-                    {formatValue(result.submitted_customer_count)}
-                  </strong>
-                </div>
-
-                <div className="ec-detail-card">
-                  <span>Total customers evaluated</span>
-                  <strong>
-                    {formatValue(
-                      result.summary?.total_customers ?? allocations.length,
-                    )}
-                  </strong>
-                </div>
-
-                <div className="ec-detail-card">
-                  <span>Treated customers</span>
-                  <strong>
-                    {formatValue(
-                      result.summary?.treated_customers ??
-                        result.allocated_customers_count ??
-                        treatedAllocations.length,
-=======
                   <span>Solver Type</span>
                   <strong>{result.is_mock === true ? 'Demo Solver' : 'Linear Programming Optimizer'}</strong>
                 </div>
@@ -954,30 +639,11 @@ export default function BudgetAllocationPanel({
                       result.summary?.treated_customers ??
                       result.allocated_customers_count ??
                       treatedAllocations.length,
->>>>>>> origin/khushi-work
                     )}
                   </strong>
                 </div>
               </div>
 
-<<<<<<< HEAD
-              <div className="ec-alert info">
-                <strong>Interpretation note</strong>
-                <p>
-                  Expected uplift represents model-guided incremental estimates under the specified
-                  budget constraints. It is not an unconditional guarantee of commercial outcomes.
-                </p>
-              </div>
-
-              {limitations.length > 0 && (
-                <div className="ec-warning-list">
-                  <h4>Backend limitations</h4>
-                  {limitations.map((item, index) => (
-                    <p key={index}>{String(item)}</p>
-                  ))}
-                </div>
-              )}
-=======
               {limitations.length > 0 && (
                 <div className="ec-warning-list">
                   <h4>Backend Optimization Limitations</h4>
@@ -997,59 +663,23 @@ export default function BudgetAllocationPanel({
                   <ArrowRight size={15} />
                 </button>
               </div>
->>>>>>> origin/khushi-work
             </>
           )}
         </div>
       )}
 
-<<<<<<< HEAD
-      {/* Customer Allocation Tab */}
-=======
       {/* Tab: CUSTOMER ALLOCATION */}
->>>>>>> origin/khushi-work
       {activeTab === 'Customer Allocation' && (
         <div className="ec-tab-content">
           <div className="ec-section-heading">
             <div>
-<<<<<<< HEAD
-              <h4>Customer allocation</h4>
-              <p>
-                Customer-level assignments returned by the backend optimizer.
-              </p>
-=======
               <h4>Targeted Customer Policy Assignments</h4>
               <p>Individualized discount allocations produced by the optimization solver.</p>
->>>>>>> origin/khushi-work
             </div>
           </div>
 
           {!result ? (
             <div className="ec-empty-state">
-<<<<<<< HEAD
-              <h4>Allocation not available</h4>
-              <p>
-                Run budget optimization first to view customer assignments.
-              </p>
-            </div>
-          ) : treatedAllocations.length > 0 ? (
-            <>
-              <div className="ec-allocation-summary">
-                <strong>
-                  {treatedAllocations.length.toLocaleString()}
-                </strong>
-                <span>
-                  customers assigned a positive discount subsidy
-                </span>
-              </div>
-
-              <p className="ec-muted-text">
-                Showing {visibleAllocations.length} of{' '}
-                {treatedAllocations.length} treated customers.
-              </p>
-
-              <div className="ec-table-wrap">
-=======
               <Users size={36} />
               <h4>Allocations Unavailable</h4>
               <p>Execute budget optimization to inspect individual customer discount recommendations.</p>
@@ -1100,27 +730,10 @@ export default function BudgetAllocationPanel({
 
               {/* Allocation Table */}
               <div className="table-scroll">
->>>>>>> origin/khushi-work
                 <table className="ec-table">
                   <thead>
                     <tr>
                       <th>Customer ID</th>
-<<<<<<< HEAD
-                      <th>Assigned discount</th>
-                      <th>Cost</th>
-                      <th>Expected uplift</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleAllocations.map((item, index) => (
-                      <tr key={`${item.customer_id}-${index}`}>
-                        <td>{formatValue(item.customer_id)}</td>
-                        <td>{formatValue(item.assigned_discount)}</td>
-                        <td>{formatValue(item.cost)}</td>
-                        <td>{formatValue(item.expected_uplift)}</td>
-                      </tr>
-                    ))}
-=======
                       <th>Assigned Discount</th>
                       <th>Treatment Cost ($)</th>
                       <th>Expected Uplift</th>
@@ -1165,45 +778,25 @@ export default function BudgetAllocationPanel({
                         </tr>
                       )
                     })}
->>>>>>> origin/khushi-work
                   </tbody>
                 </table>
               </div>
 
-<<<<<<< HEAD
-              {treatedAllocations.length > DISPLAY_LIMIT && (
-                <p className="ec-footnote">
-                  Display limited to the first {DISPLAY_LIMIT} treated customers for responsiveness.
-                  The full solution contains {treatedAllocations.length} treated individuals.
-=======
               {filteredAllocations.length > DISPLAY_LIMIT && (
                 <p className="table-note">
                   Displaying the top {DISPLAY_LIMIT} customer allocations. Full policy of {filteredAllocations.length.toLocaleString()} records evaluated by solver.
->>>>>>> origin/khushi-work
                 </p>
               )}
             </>
           ) : (
             <div className="ec-empty-state">
-<<<<<<< HEAD
-              <h4>No treated customers returned</h4>
-              <p>
-                The solver allocated all budget to control ($0.0) based on non-positive uplift or
-                budget limits.
-              </p>
-=======
               <Users size={30} />
               <h4>No Treated Customers Returned</h4>
               <p>The solver determined that with the specified budget and discount levels, no customers qualified for positive discount assignment.</p>
->>>>>>> origin/khushi-work
             </div>
           )}
         </div>
       )}
     </div>
   )
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> origin/khushi-work
